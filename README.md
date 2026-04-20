@@ -57,6 +57,13 @@ npm start
 - `!addfact <text>` - add knowledge fact (admin)
 - `!rank` / `!level` - activity rank
 - `!leaderboard` / `!lb` - top activity users
+- `!blueprint` - show planned channel + clan structure
+
+## Blueprint Docs
+
+- `docs/CHANNEL-BLUEPRINT.md` - public strategy and private Tempest clan channels
+- `docs/SERVER-BOT-SETUP.md` - UI vs CLI setup workflow for Discord + Railway
+- `docs/ENV-AND-CHANNELS.md` - env variables, role map, and tier ladder
 
 ## Mandatory Release Rule
 

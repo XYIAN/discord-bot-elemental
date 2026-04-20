@@ -41,9 +41,10 @@ const CONFIG = {
     },
     roleNames: {
         base: 'Elemental Initiate',
-        tier1: 'Elemental Vanguard',
-        tier2: 'Elemental Warden',
-        tier3: 'Elemental Ascendant',
+        tier1: 'Tempest High Rank 3',
+        tier2: 'Tempest High Rank 2',
+        tier3: 'Tempest High Rank 1',
+        tier4: 'Tempest Left Marshal',
     },
     clanRoleNames: {
         verified: 'XY Tempest Verified',
@@ -51,11 +52,53 @@ const CONFIG = {
         mainChat: 'tempest-clan-chat',
     },
     activityTiers: [
-        { name: 'Elemental Vanguard', threshold: 100 },
-        { name: 'Elemental Warden', threshold: 350 },
-        { name: 'Elemental Ascendant', threshold: 1000 },
+        { name: 'Tempest High Rank 3', threshold: 100 },
+        { name: 'Tempest High Rank 2', threshold: 350 },
+        { name: 'Tempest High Rank 1', threshold: 800 },
+        { name: 'Tempest Left Marshal', threshold: 1500 },
     ],
     activityChannelIds: new Set([]), // Fill after channel creation
+    activityChannelNames: new Set([
+        'gameplay-general',
+        'crafting-realm',
+        'mount-realm',
+        'trial-tower',
+        'arena',
+        'builds-and-refines',
+        'spirits-and-relics',
+        'codes-and-events',
+        'help-and-questions',
+    ]),
+    channelBlueprint: {
+        publicCategories: [
+            {
+                name: 'strategy',
+                channels: [
+                    'gameplay-general',
+                    'crafting-realm',
+                    'mount-realm',
+                    'trial-tower',
+                    'arena',
+                    'builds-and-refines',
+                    'spirits-and-relics',
+                    'codes-and-events',
+                    'help-and-questions',
+                ],
+            },
+        ],
+        privateClanCategory: {
+            name: 'tempest-clan',
+            channels: [
+                'tempest-clan-chat',
+                'clan-quests',
+                'clan-events',
+                'clan-vault',
+                'treasure-trove',
+                'clan-rank-promotion',
+                'officer-planning',
+            ],
+        },
+    },
     adminRoleNames: ['XY Tempest Officer', 'Admin', 'Moderator'],
 };
 
@@ -101,6 +144,35 @@ function awardActivityPoint(userId, username) {
     return entry.points;
 }
 
+function isActivityChannel(channel) {
+    if (!channel) return false;
+    if (CONFIG.activityChannelIds.has(channel.id)) return true;
+    return typeof channel.name === 'string' && CONFIG.activityChannelNames.has(channel.name);
+}
+
+function getActivityTier(points) {
+    let current = { name: CONFIG.roleNames.base, threshold: 0 };
+    for (const tier of CONFIG.activityTiers) {
+        if (points >= tier.threshold) current = tier;
+    }
+    return current;
+}
+
+function getNextActivityTier(points) {
+    return CONFIG.activityTiers.find((tier) => points < tier.threshold) || null;
+}
+
+function buildProgressBar(points) {
+    const current = getActivityTier(points);
+    const next = getNextActivityTier(points);
+    if (!next) return '██████████ MAX';
+    const start = current.threshold || 0;
+    const span = Math.max(next.threshold - start, 1);
+    const progress = Math.min(Math.max(points - start, 0), span);
+    const filled = Math.floor((progress / span) * 10);
+    return `${'█'.repeat(filled)}${'░'.repeat(10 - filled)}`;
+}
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -121,7 +193,7 @@ client.on('messageCreate', async (message) => {
 
     const isCommand = message.content.startsWith('!');
 
-    if (message.guild && CONFIG.activityChannelIds.has(message.channel.id) && !isCommand) {
+    if (message.guild && isActivityChannel(message.channel) && !isCommand) {
         awardActivityPoint(message.author.id, message.author.username);
     }
 
@@ -142,8 +214,9 @@ client.on('messageCreate', async (message) => {
                     '`!help` / `!menu` - command list',
                     '`!suggest <text>` - submit suggestion',
                     '`!addfact <text>` - add fact (admin)',
-                    '`!rank` - show your activity points',
-                    '`!leaderboard` - top activity users',
+                    '`!rank` / `!level` - show your rank and progress',
+                    '`!leaderboard` / `!lb` - top activity users',
+                    '`!blueprint` - show planned channel blueprint',
                 ].join('\n')
             );
         case 'suggest': {
@@ -177,7 +250,21 @@ client.on('messageCreate', async (message) => {
         case 'level': {
             const map = loadJson(ACTIVITY_PATH, {});
             const entry = map[message.author.id] || { points: 0 };
-            return message.reply(`You have **${entry.points}** activity points.`);
+            const points = entry.points || 0;
+            const tier = getActivityTier(points);
+            const next = getNextActivityTier(points);
+            const bar = buildProgressBar(points);
+            const nextLine = next
+                ? `Next: **${next.name}** at **${next.threshold}** (${Math.max(next.threshold - points, 0)} to go)`
+                : 'You are at the highest configured rank tier.';
+            return message.reply(
+                [
+                    `**Rank:** ${tier.name}`,
+                    `**Points:** ${points}`,
+                    `**Progress:** ${bar}`,
+                    nextLine,
+                ].join('\n')
+            );
         }
         case 'leaderboard':
         case 'lb': {
@@ -186,8 +273,28 @@ client.on('messageCreate', async (message) => {
                 .sort((a, b) => (b.points || 0) - (a.points || 0))
                 .slice(0, 10);
             if (!top.length) return message.reply('No activity data yet.');
-            const lines = top.map((u, i) => `${i + 1}. ${u.username} - ${u.points} pts`);
+            const lines = top.map((u, i) => {
+                const tier = getActivityTier(u.points || 0);
+                return `${i + 1}. ${u.username} - ${u.points || 0} pts (${tier.name})`;
+            });
             return message.reply(['**Activity Leaderboard**', ...lines].join('\n'));
+        }
+        case 'blueprint': {
+            const publicList = CONFIG.channelBlueprint.publicCategories[0].channels.map((name) => `- #${name}`).join('\n');
+            const clanList = CONFIG.channelBlueprint.privateClanCategory.channels.map((name) => `- #${name}`).join('\n');
+            return message.reply(
+                [
+                    '**Server Blueprint (Template)**',
+                    '',
+                    '**Public Strategy Channels**',
+                    publicList,
+                    '',
+                    '**Private Tempest Clan Channels**',
+                    clanList,
+                    '',
+                    `Clan roles: **${CONFIG.clanRoleNames.verified}**, **${CONFIG.clanRoleNames.officer}**`,
+                ].join('\n')
+            );
         }
         default:
             return null;

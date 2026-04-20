@@ -45,6 +45,22 @@ Fill this out when building the new game community:
 | Tier 1 | `...` |
 | Tier 2 | `...` |
 | Tier 3 | `...` |
+| Tier 4 | `...` |
 | Clan verified role | `XY Tempest Verified` |
 | Clan officer role | `XY Tempest Officer` |
 | Admin role(s) | `...` |
+
+## Starter activity ladder (clan-rank inspired)
+
+| Threshold | Role |
+|---|---|
+| 0 | Elemental Initiate (base) |
+| 100 | Tempest High Rank 3 |
+| 350 | Tempest High Rank 2 |
+| 800 | Tempest High Rank 1 |
+| 1500 | Tempest Left Marshal |
+
+## Blueprint references
+
+- Channel taxonomy: `docs/CHANNEL-BLUEPRINT.md`
+- End-to-end setup runbook: `docs/SERVER-BOT-SETUP.md`
