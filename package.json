@@ -1,0 +1,21 @@
+{
+  "name": "discord-bot-elemental",
+  "version": "0.1.0",
+  "description": "Game-specific Discord bot template for community knowledge and progression",
+  "private": true,
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "node bot.js"
+  },
+  "author": "XYIAN",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "openai": "^6.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

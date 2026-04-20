@@ -1,0 +1,20 @@
+# Discord Bot Elemental - AI Assistant Rules
+
+## Project structure
+
+- Root files: `package.json`, `railway.json`, `Procfile`, `.nvmrc`, `README.md`, `.cursorrules`, `CHANGELOG.md`, `bot.js`
+- Data files: `data/*.json`
+- Documentation: `docs/`
+
+## Development approach
+
+- Keep bot logic in `bot.js` until a planned modular split.
+- Make game-specific behavior configurable rather than hardcoded when possible.
+- Never copy old game knowledge text into this repo.
+
+## Critical release rules
+
+1. Always update `CHANGELOG.md` before every push to `main`.
+2. Newest version entry must be first (`## [x.y.z]`) in semver order.
+3. Verify deployment posts to both release/debug channels after push.
+4. Never commit secrets (`.env`, tokens, webhook URLs).
