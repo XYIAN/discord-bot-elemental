@@ -25,6 +25,8 @@
 - Game-specific names and IDs should live in explicit config blocks
 - Avoid hardcoded channel IDs scattered throughout logic
 - Keep all role/channel constants centralized
+- Keep main server display naming configurable until finalized
+- Use game-correct wording in user-facing copy (`clan` for Legend of Elements)
 
 ## Future modular split (optional)
 

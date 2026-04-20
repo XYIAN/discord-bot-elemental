@@ -33,19 +33,30 @@ const FEEDBACK_PATH = path.join(DATA_DIR, 'feedback.json');
 const ACTIVITY_COOLDOWN_MS = 60_000;
 
 const CONFIG = {
+    // Keep top-level server branding flexible until finalized.
+    gameProfile: {
+        gameName: 'Legend of Elements',
+        serverDisplayName: null, // e.g. "Tempest of Elements" (decide later)
+        organizationType: 'clan', // game term uses clans, not guilds
+    },
     roleNames: {
-        base: 'Member',
-        tier1: 'Strategist',
-        tier2: 'Veteran',
-        tier3: 'Legend',
+        base: 'Elemental Initiate',
+        tier1: 'Elemental Vanguard',
+        tier2: 'Elemental Warden',
+        tier3: 'Elemental Ascendant',
+    },
+    clanRoleNames: {
+        verified: 'XY Tempest Verified',
+        officer: 'XY Tempest Officer',
+        mainChat: 'tempest-clan-chat',
     },
     activityTiers: [
-        { name: 'Strategist', threshold: 100 },
-        { name: 'Veteran', threshold: 350 },
-        { name: 'Legend', threshold: 1000 },
+        { name: 'Elemental Vanguard', threshold: 100 },
+        { name: 'Elemental Warden', threshold: 350 },
+        { name: 'Elemental Ascendant', threshold: 1000 },
     ],
     activityChannelIds: new Set([]), // Fill after channel creation
-    adminRoleNames: ['Admin', 'Moderator'],
+    adminRoleNames: ['XY Tempest Officer', 'Admin', 'Moderator'],
 };
 
 function ensureFile(filePath, fallback) {

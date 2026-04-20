@@ -1,7 +1,99 @@
 {
   "game": {
-    "name": "Elemental (placeholder)",
-    "notes": "Replace with real game profile and core systems."
+    "name": "Legend of Elements",
+    "genre": "Fantasy RPG with cultivation themes and action combat.",
+    "core_loop": "Build class power through skills, spirits, gear, relics, mounts, and mode progression.",
+    "organization_type": "clan",
+    "server_name_note": "Main Discord/community server name is intentionally configurable and not finalized."
+  },
+  "classes": {
+    "known_classes": [
+      "Wind Swordsman",
+      "Thunder Sorcerer",
+      "Fire Warrior"
+    ],
+    "swordsman_summary": "Strong starter DPS class, excels at single-target fights (PvP and bosses), weaker AoE coverage versus multi-enemy PvE."
+  },
+  "stats": {
+    "swordsman_priority_stats": [
+      "Speed",
+      "Core Skill DMG",
+      "Skill DMG",
+      "Crit Rate",
+      "Crit Damage"
+    ],
+    "speed_note": "Speed is repeatedly emphasized as a top-impact stat for DPS builds."
+  },
+  "gameplay_modes": {
+    "realm_mode": [
+      {
+        "name": "Crafting Realm",
+        "purpose": "Challenge mode used to obtain Crafting Gems for gear crafting."
+      },
+      {
+        "name": "Mount Realm",
+        "purpose": "Mode used to obtain Soulvine to enhance mounts."
+      }
+    ],
+    "trial_mode": [
+      {
+        "name": "Trial Tower",
+        "purpose": "Floor-based progression mode with ranking and rewards."
+      },
+      {
+        "name": "Arena",
+        "purpose": "Ranked PvP mode under Trial Mode."
+      }
+    ],
+    "source_note": "Names and short descriptions above are directly visible in provided screenshots."
+  },
+  "clan_system": {
+    "clan_name_example": "Tempest",
+    "hall_sections": [
+      "Clan Hall",
+      "Clan Quests",
+      "Clan Events",
+      "Clan Vault",
+      "Treasure Trove",
+      "Clan List"
+    ],
+    "rank_page_buttons": [
+      "Rank Privilege",
+      "Rank Promotion"
+    ],
+    "rank_titles_visible": [
+      "Chief Chancellor",
+      "Left Chancellor",
+      "Right Chancellor",
+      "Chief Marshal",
+      "Left Marshal",
+      "Right Marshal",
+      "High Rank 1",
+      "High Rank 2",
+      "High Rank 3"
+    ],
+    "current_rank_example": "High Rank 2 (from screenshot context)."
+  },
+  "build_systems": {
+    "visible_progression_panels": [
+      "Blacksmith",
+      "Outfit",
+      "Mount",
+      "Relic",
+      "Gear Craft"
+    ],
+    "notes": "These systems are visible from the provided UI screenshots and should be represented in future strategy channels and docs."
+  },
+  "sources": {
+    "wiki_root": "https://www.legendofelements.com/",
+    "wiki_swordsman_guide": "https://www.legendofelements.com/characters/swordsman",
+    "wiki_global_launch": "https://www.legendofelements.com/news/global-launch",
+    "local_screenshots": [
+      "Screenshot_2026-04-20_at_1.24.25_PM-52d7626f-b9a3-43f2-91eb-617b7d2f3a39.png",
+      "IMG_0976-cb48f029-fed6-474e-ba44-a577eb63fe54.png",
+      "IMG_0975-e168bea8-eaac-41ab-909e-ce1fe82c93a3.png",
+      "IMG_0974-7864a0c2-6d4d-4b21-a027-435f5d61f3b1.png"
+    ]
   },
   "custom_facts": []
 }

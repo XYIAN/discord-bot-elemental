@@ -2,6 +2,12 @@
 
 Game-specific Discord bot template for building a branded knowledge + community assistant (persona, facts, role progression, strategy gamification) without carrying over old game content.
 
+Current target game context:
+- Game: **Legend of Elements**
+- Main server name: **not finalized** (keep configurable)
+- Private clan identity: **Tempest**
+- Game terminology: use **clan** (not guild)
+
 ## Purpose
 
 This repo is a clean foundation for a new game community bot using the proven architecture from the XYIAN bot:
@@ -13,6 +19,10 @@ This repo is a clean foundation for a new game community bot using the proven ar
 - Railway deploy + debug visibility
 
 All game/theme content should be configured for this new game only.
+
+Clan-specific defaults currently staged in config:
+- `XY Tempest Verified`
+- `XY Tempest Officer`
 
 ## Quick Start
 
