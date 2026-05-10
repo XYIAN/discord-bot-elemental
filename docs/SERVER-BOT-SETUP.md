@@ -9,12 +9,13 @@ Discord does not provide a full first-party CLI for application creation, so the
 1. Create new Discord Application
 2. Create Bot user under that application
 3. Enable required bot intents:
-   - Message Content Intent
-   - Server Members Intent
+   - Message Content Intent (only if you set `ENABLE_MESSAGE_CONTENT_INTENT=true`)
+   - Server Members Intent (only if you set `ENABLE_GUILD_MEMBERS_INTENT=true`)
 4. Copy:
    - Bot token
    - Client/Application ID
 5. Invite bot to server with Administrator (or equivalent scoped permissions)
+6. In **Server Settings -> Roles**, drag the bot-managed role (`Tempest Commander`) above roles you want it to manage/reorder.
 
 ## 2) What can be done via CLI/API
 
@@ -116,3 +117,17 @@ Fix:
    - `applications.commands`
 3. Ensure the invited app is **Tempest Commander** (Application ID `1502933339642921000`).
 4. Retry `npm run setup:dry-run`.
+
+### `Missing Permissions (50013)` while reordering roles
+
+Cause:
+- The bot can create/update role styles but cannot reorder target roles because its managed role is not above them in the role stack.
+
+Fix:
+1. Open **Server Settings -> Roles**.
+2. Drag the bot-managed role (`Tempest Commander`) above admin/mod/officer/rank roles.
+3. Re-run:
+
+```bash
+npm run setup:roles
+```

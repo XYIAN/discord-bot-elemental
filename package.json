@@ -1,6 +1,6 @@
 {
   "name": "discord-bot-elemental",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Game-specific Discord bot template for community knowledge and progression",
   "private": true,
   "scripts": {

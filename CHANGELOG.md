@@ -8,6 +8,14 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [1.0.5] - 2026-05-10
+
+### Role hierarchy guardrails
+
+- Added role-hierarchy reorder logic to `scripts/create-roles.js` so roles can be kept in a consistent top-down order (Admin, Moderator, Officer, forum tiers, activity tiers, verified/base).
+- Added a safe permission guard: if the bot role is not above target roles, reorder is skipped with a clear actionable warning instead of failing the script with `Missing Permissions (50013)`.
+- This keeps `npm run setup:roles` reliable while still applying role create/update/color changes.
+
 ## [1.0.4] - 2026-05-10
 
 ### Intent safety + role styling fixes

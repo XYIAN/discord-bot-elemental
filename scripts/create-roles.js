@@ -126,6 +126,62 @@ async function main() {
         });
         console.log(`+ created: ${roleName}`);
     }
+
+    // Enforce a readable hierarchy so admin/mod/officer and progression tiers
+    // appear in a stable, high-contrast order for members.
+    const refreshedRoles = await fetchGuildRoles(token, guildId);
+    const byName = new Map(refreshedRoles.map((r) => [r.name, r]));
+    const forumTopDown = [...(config.forumRoleTiers || [])]
+        .sort((a, b) => (b.threshold || 0) - (a.threshold || 0))
+        .map((t) => t.name);
+    const activityTopDown = [...(config.activityTiers || [])]
+        .sort((a, b) => (b.threshold || 0) - (a.threshold || 0))
+        .map((t) => t.name);
+
+    const preferredTopDown = [
+        'Admin',
+        'Moderator',
+        config.clanRoleNames.officer,
+        ...forumTopDown,
+        ...activityTopDown,
+        config.clanRoleNames.verified,
+        config?.reactionRole?.roleName,
+        config.roleNames.base,
+    ].filter(Boolean);
+
+    const managedIds = new Set(refreshedRoles.filter((r) => r.managed).map((r) => r.id));
+    const botRole = refreshedRoles.find((r) => r.tags?.bot_id === process.env.CLIENT_ID);
+    const botRolePosition = Number(botRole?.position || 0);
+    const reorderCandidates = preferredTopDown
+        .map((name) => byName.get(name))
+        .filter((r) => r && !managedIds.has(r.id));
+    const reorderTargets = reorderCandidates.filter((r) => Number(r.position) < botRolePosition);
+
+    if (!reorderTargets.length && reorderCandidates.length) {
+        const warning = (
+            `Role reorder skipped: bot role "${botRole?.name || 'unknown'}" is at position ${botRolePosition}, ` +
+            'so no target roles are below it. Move the bot role higher in Server Settings > Roles, then rerun setup:roles.'
+        );
+        console.log(`! ${warning}`);
+        return;
+    }
+
+    if (reorderTargets.length) {
+        // Discord higher numeric position = higher in role list.
+        const payload = reorderTargets.map((role, idx) => ({
+            id: role.id,
+            position: reorderTargets.length - idx + 1,
+        }));
+        if (isDryRun) {
+            console.log('~ dry-run reorder hierarchy:');
+            for (const [idx, role] of reorderTargets.entries()) {
+                console.log(`  ${idx + 1}. ${role.name}`);
+            }
+        } else {
+            await discordRequest('PATCH', `/guilds/${guildId}/roles`, token, payload);
+            console.log('~ updated role hierarchy order');
+        }
+    }
 }
 
 main().catch((err) => {
