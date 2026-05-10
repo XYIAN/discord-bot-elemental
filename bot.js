@@ -388,11 +388,16 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
                     '`!ai on` / `!ai off` - owner kill switch',
                     '`!forget` - clear your AI conversation memory',
                     '',
+                    '**Tempest game**',
+                    '`!contributors` / `!top` - top knowledge contributors',
+                    '',
                     '**Admin (ops)**',
                     '`!post-changelog [x.y.z]` - re-post changelog to #changelog',
-                    '`!debug-ping` - smoke-test #debug-log post',
+                    '`!post-clan-requirements` - post Tempest clan requirements embed',
                     '`!recruit` - post Tempest clan recruit embed now',
+                    '`!reset` - fire the daily reset reminder now',
                     '`!setupreaction` - post the AI opt-in reaction message',
+                    '`!debug-ping` - smoke-test #debug-log post',
                 ].join('\n')
             );
         case 'post-changelog':
@@ -456,6 +461,73 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         case 'forget': {
             clearUserMemory(userId);
             return reply('Cleared your AI conversation memory.');
+        }
+        case 'contributors':
+        case 'top': {
+            const facts = (loadJson(KNOWLEDGE_PATH, { custom_facts: [] }).custom_facts || []);
+            const opinions = loadJson(OPINIONS_PATH, []);
+            const suggestions = loadJson(SUGGESTIONS_PATH, []);
+            const counts = new Map();
+            const bump = (key, kind) => {
+                if (!key) return;
+                const e = counts.get(key) || { facts: 0, opinions: 0, suggestions: 0, total: 0 };
+                e[kind] += 1;
+                e.total += 1;
+                counts.set(key, e);
+            };
+            for (const f of facts) bump(f.added_by || 'unknown', 'facts');
+            for (const o of opinions) bump(o.by || 'unknown', 'opinions');
+            for (const s of suggestions) bump(s.by || 'unknown', 'suggestions');
+            const ranked = [...counts.entries()]
+                .map(([name, c]) => ({ name, ...c }))
+                .sort((a, b) => b.total - a.total)
+                .slice(0, 10);
+            if (!ranked.length) return reply('No contribution data yet.');
+            const lines = ranked.map((r, i) => `${i + 1}. **${r.name}** - ${r.total} total (facts: ${r.facts}, opinions: ${r.opinions}, suggestions: ${r.suggestions})`);
+            return reply(['**Top Contributors**', ...lines].join('\n'));
+        }
+        case 'post-clan-requirements':
+        case 'postclanrequirements': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const channel = await findChannelByNames(['tempest-clan-chat', ...CONFIG.welcomeChannelNames]);
+            if (!channel) return reply('No clan-chat or welcome channel found to post to.');
+            const embed = new EmbedBuilder()
+                .setTitle('⚡ Tempest Clan Requirements')
+                .setColor(0x5865f2)
+                .setDescription(
+                    [
+                        'Tempest is a competitive Legend of Elements clan. To stay rostered:',
+                        '',
+                        '**Daily**',
+                        '• Complete your daily class',
+                        '• Register for clan raid before window closes',
+                        '• Clear key dailies and event tasks',
+                        '',
+                        '**Weekly**',
+                        '• Hit clan event participation thresholds',
+                        '• Contribute to clan vault',
+                        '',
+                        '**Conduct**',
+                        '• Respect officers and clanmates',
+                        '• Report blockers in `#help-and-questions`',
+                        '• Keep strategy talk in the right channel',
+                        '',
+                        'Officers will reach out about promotion paths once you are consistently active.',
+                    ].join('\n')
+                )
+                .setFooter({ text: `${APP_NAME} - Tempest discipline wins seasons.` })
+                .setTimestamp();
+            try {
+                await channel.send({ embeds: [embed] });
+                return reply(`Posted clan requirements to #${channel.name}.`);
+            } catch (error) {
+                return reply(`Post failed: ${error.message}`);
+            }
+        }
+        case 'reset': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const sent = await sendDailyResetReminder();
+            return reply(sent ? 'Daily reset reminder sent now.' : 'No target channel found.');
         }
         case 'suggest': {
             if (!argText) return reply('Usage: `!suggest <text>`');

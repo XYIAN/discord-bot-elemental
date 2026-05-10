@@ -8,6 +8,16 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [0.8.0] - 2026-05-10
+
+### Tempest game commands
+
+- Added `!contributors` / `!top` - aggregates top contributors across `data/knowledge.json` (custom_facts), `data/opinions.json`, and `data/suggestions.json`.
+- Added `!post-clan-requirements` (admin) - posts Tempest clan requirements embed to `#tempest-clan-chat` (or fallback welcome channel).
+- Added `!reset` (admin) - fires the daily reset reminder on demand instead of waiting for the 9 PM PT scheduler.
+- Reorganized `!help` to surface a Tempest-specific command group.
+- `!debug-ping` (already in v0.4.0) confirmed in help under Admin ops.
+
 ## [0.7.0] - 2026-05-10
 
 ### Full AI parity for #elemental-ai
