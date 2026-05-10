@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { nextId, SUGGESTION_STATUSES } = require('./scripts/lib/data-store');
 require('dotenv').config();
 require('dotenv').config({ path: path.join(__dirname, '.env.local'), override: false });
 
@@ -92,11 +93,13 @@ async function postChangelogToChannel(channel, version, lines) {
 
 const { version: BOT_VERSION, lines: BOT_CHANGELOG } = parseChangelog();
 
-const DATA_DIR = path.join(__dirname, 'data');
+const REPO_DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_VOLUME_PATH || REPO_DATA_DIR;
 const KNOWLEDGE_PATH = path.join(DATA_DIR, 'knowledge.json');
 const SUGGESTIONS_PATH = path.join(DATA_DIR, 'suggestions.json');
 const ACTIVITY_PATH = path.join(DATA_DIR, 'activity.json');
 const FEEDBACK_PATH = path.join(DATA_DIR, 'feedback.json');
+const OPINIONS_PATH = path.join(DATA_DIR, 'opinions.json');
 const REACTION_ROLE_PATH = path.join(DATA_DIR, 'reaction-role.json');
 const ACTIVITY_COOLDOWN_MS = 60_000;
 
@@ -165,12 +168,31 @@ function saveJson(filePath, value) {
     fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
 }
 
+function seedDataFiles() {
+    if (DATA_DIR === REPO_DATA_DIR) return;
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    const seedFiles = ['knowledge.json', 'suggestions.json', 'activity.json', 'feedback.json', 'opinions.json', 'reaction-role.json'];
+    for (const name of seedFiles) {
+        const target = path.join(DATA_DIR, name);
+        const source = path.join(REPO_DATA_DIR, name);
+        if (!fs.existsSync(target) && fs.existsSync(source)) {
+            try {
+                fs.copyFileSync(source, target);
+                console.log(`Seeded ${name} from repo to volume.`);
+            } catch (error) {
+                console.error(`Failed to seed ${name}: ${error.message}`);
+            }
+        }
+    }
+}
+
 function ensureDataFiles() {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
     ensureFile(KNOWLEDGE_PATH, { custom_facts: [] });
     ensureFile(SUGGESTIONS_PATH, []);
     ensureFile(ACTIVITY_PATH, {});
     ensureFile(FEEDBACK_PATH, []);
+    ensureFile(OPINIONS_PATH, []);
     ensureFile(REACTION_ROLE_PATH, { messageIds: CONFIG.reactionRole.seedMessageIds });
 }
 
@@ -307,18 +329,34 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         case 'menu':
             return reply(
                 [
-                    '**Commands**',
+                    '**General**',
                     '`!ping` / `/ping` - status',
                     '`!help` / `!menu` / `/help` - command list',
-                    '`!suggest <text>` - submit suggestion',
-                    '`!addfact <text>` - add fact (admin)',
                     '`!rank` / `!level` / `/rank` - show your rank and progress',
                     '`!leaderboard` / `!lb` / `/leaderboard` - top activity users',
                     '`!blueprint` / `/blueprint` - show planned channel blueprint',
-                    '`!post-changelog [x.y.z]` - admin: re-post changelog to #changelog',
-                    '`!debug-ping` - admin: smoke-test #debug-log post',
-                    '`!recruit` - admin: post Tempest clan recruit embed now',
-                    '`!setupreaction` - admin: post the AI opt-in reaction message',
+                    '',
+                    '**Knowledge**',
+                    '`!suggest <text>` - submit suggestion',
+                    '`!opinion <text>` - record an opinion',
+                    '`!faq <topic>` - search knowledge base',
+                    '`!listfacts [page]` - list custom facts',
+                    '`!listopinions [page]` - list opinions',
+                    '',
+                    '**Admin (knowledge moderation)**',
+                    '`!addfact <text>` - add fact',
+                    '`!removefact <id>` - remove fact',
+                    '`!removeopinion <id>` - remove opinion',
+                    '`!suggestions [pending|approved|rejected|granted]` - list suggestion queue',
+                    '`!edit <id> <text>` - edit suggestion text',
+                    '`!approve <id>` / `!reject <id>` - decide a suggestion',
+                    '`!grant <id>` - promote suggestion to a fact',
+                    '',
+                    '**Admin (ops)**',
+                    '`!post-changelog [x.y.z]` - re-post changelog to #changelog',
+                    '`!debug-ping` - smoke-test #debug-log post',
+                    '`!recruit` - post Tempest clan recruit embed now',
+                    '`!setupreaction` - post the AI opt-in reaction message',
                 ].join('\n')
             );
         case 'post-changelog':
@@ -361,29 +399,207 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         case 'suggest': {
             if (!argText) return reply('Usage: `!suggest <text>`');
             const list = loadJson(SUGGESTIONS_PATH, []);
+            const id = nextId(list);
             list.push({
-                id: list.length + 1,
+                id,
                 text: argText,
                 by: username,
                 userId,
                 at: new Date().toISOString(),
                 status: 'pending',
+                decidedBy: null,
+                decidedAt: null,
             });
             saveJson(SUGGESTIONS_PATH, list);
-            return reply('Suggestion received.');
+            return reply(`Suggestion #${id} received. Admin will review.`);
         }
         case 'addfact': {
             if (!isAdmin(member)) return reply('Admin only command.');
             if (!argText) return reply('Usage: `!addfact <text>`');
             const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
             if (!Array.isArray(knowledge.custom_facts)) knowledge.custom_facts = [];
+            const id = nextId(knowledge.custom_facts);
             knowledge.custom_facts.push({
+                id,
                 text: argText,
                 added_by: username,
                 added_at: new Date().toISOString().split('T')[0],
             });
             saveJson(KNOWLEDGE_PATH, knowledge);
-            return reply(`Fact added. Total custom facts: ${knowledge.custom_facts.length}`);
+            return reply(`Fact #${id} added. Total custom facts: ${knowledge.custom_facts.length}.`);
+        }
+        case 'listfacts':
+        case 'lf': {
+            const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
+            const facts = Array.isArray(knowledge.custom_facts) ? knowledge.custom_facts : [];
+            if (!facts.length) return reply('No custom facts yet. Use `!addfact <text>` (admin) to add.');
+            const requested = parseInt((argText || '').trim(), 10);
+            const page = Number.isInteger(requested) && requested > 0 ? requested : 1;
+            const pageSize = 10;
+            const totalPages = Math.max(1, Math.ceil(facts.length / pageSize));
+            const safePage = Math.min(page, totalPages);
+            const slice = facts.slice((safePage - 1) * pageSize, safePage * pageSize);
+            const lines = slice.map((f) => `**#${f.id || '?'}** ${f.text} _(by ${f.added_by || 'unknown'})_`);
+            return reply(['**Custom Facts**', ...lines, '', `Page ${safePage}/${totalPages} - use \`!listfacts <page>\` to navigate.`].join('\n'));
+        }
+        case 'removefact':
+        case 'rf': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const id = parseInt((argText || '').trim(), 10);
+            if (!Number.isInteger(id)) return reply('Usage: `!removefact <id>`');
+            const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
+            if (!Array.isArray(knowledge.custom_facts)) knowledge.custom_facts = [];
+            const before = knowledge.custom_facts.length;
+            knowledge.custom_facts = knowledge.custom_facts.filter((f) => Number(f.id) !== id);
+            if (knowledge.custom_facts.length === before) return reply(`No fact found with id ${id}.`);
+            saveJson(KNOWLEDGE_PATH, knowledge);
+            return reply(`Fact #${id} removed. Remaining: ${knowledge.custom_facts.length}.`);
+        }
+        case 'faq': {
+            const topic = (argText || '').trim().toLowerCase();
+            if (!topic) return reply('Usage: `!faq <topic>` - searches knowledge for matching keywords.');
+            const knowledge = loadJson(KNOWLEDGE_PATH, {});
+            const hits = [];
+            const facts = Array.isArray(knowledge.custom_facts) ? knowledge.custom_facts : [];
+            for (const f of facts) {
+                if (typeof f.text === 'string' && f.text.toLowerCase().includes(topic)) {
+                    hits.push(`**Fact #${f.id || '?'}**: ${f.text}`);
+                }
+            }
+            const walk = (obj, trail) => {
+                if (typeof obj === 'string') {
+                    if (obj.toLowerCase().includes(topic)) hits.push(`**${trail.join(' / ')}**: ${obj}`);
+                    return;
+                }
+                if (Array.isArray(obj)) {
+                    obj.forEach((v, i) => walk(v, [...trail, String(i)]));
+                    return;
+                }
+                if (obj && typeof obj === 'object') {
+                    for (const [k, v] of Object.entries(obj)) walk(v, [...trail, k]);
+                }
+            };
+            for (const [k, v] of Object.entries(knowledge)) {
+                if (k === 'custom_facts') continue;
+                walk(v, [k]);
+            }
+            if (!hits.length) return reply(`No knowledge entries matched "${topic}".`);
+            const limited = hits.slice(0, 10);
+            const truncated = hits.length > limited.length ? `\n\n_Showing first ${limited.length} of ${hits.length} matches._` : '';
+            return reply([`**FAQ matches for "${topic}"**`, ...limited].join('\n') + truncated);
+        }
+        case 'opinion': {
+            if (!argText) return reply('Usage: `!opinion <text>`');
+            const list = loadJson(OPINIONS_PATH, []);
+            const id = nextId(list);
+            list.push({
+                id,
+                text: argText,
+                by: username,
+                userId,
+                at: new Date().toISOString(),
+            });
+            saveJson(OPINIONS_PATH, list);
+            return reply(`Opinion #${id} recorded.`);
+        }
+        case 'listopinions':
+        case 'lo': {
+            const list = loadJson(OPINIONS_PATH, []);
+            if (!list.length) return reply('No opinions yet. Use `!opinion <text>` to add one.');
+            const requested = parseInt((argText || '').trim(), 10);
+            const page = Number.isInteger(requested) && requested > 0 ? requested : 1;
+            const pageSize = 10;
+            const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
+            const safePage = Math.min(page, totalPages);
+            const slice = list.slice((safePage - 1) * pageSize, safePage * pageSize);
+            const lines = slice.map((o) => `**#${o.id}** ${o.text} _(by ${o.by})_`);
+            return reply(['**Opinions**', ...lines, '', `Page ${safePage}/${totalPages}`].join('\n'));
+        }
+        case 'removeopinion':
+        case 'ro': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const id = parseInt((argText || '').trim(), 10);
+            if (!Number.isInteger(id)) return reply('Usage: `!removeopinion <id>`');
+            const list = loadJson(OPINIONS_PATH, []);
+            const before = list.length;
+            const next = list.filter((o) => Number(o.id) !== id);
+            if (next.length === before) return reply(`No opinion found with id ${id}.`);
+            saveJson(OPINIONS_PATH, next);
+            return reply(`Opinion #${id} removed.`);
+        }
+        case 'suggestions':
+        case 'queue': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const filterArg = (argText || 'pending').trim().toLowerCase();
+            const status = SUGGESTION_STATUSES.includes(filterArg) ? filterArg : 'pending';
+            const list = loadJson(SUGGESTIONS_PATH, []);
+            const filtered = list.filter((s) => (s.status || 'pending') === status);
+            if (!filtered.length) return reply(`No suggestions with status "${status}".`);
+            const lines = filtered.slice(0, 15).map((s) => `**#${s.id}** ${s.text} _(by ${s.by}, status: ${s.status})_`);
+            return reply([`**Suggestions [${status}]**`, ...lines].join('\n'));
+        }
+        case 'edit': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const m = (argText || '').match(/^(\d+)\s+(.+)$/s);
+            if (!m) return reply('Usage: `!edit <id> <new text>`');
+            const id = parseInt(m[1], 10);
+            const newText = m[2].trim();
+            const list = loadJson(SUGGESTIONS_PATH, []);
+            const target = list.find((s) => Number(s.id) === id);
+            if (!target) return reply(`No suggestion found with id ${id}.`);
+            target.text = newText;
+            saveJson(SUGGESTIONS_PATH, list);
+            return reply(`Suggestion #${id} updated.`);
+        }
+        case 'approve': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const id = parseInt((argText || '').trim(), 10);
+            if (!Number.isInteger(id)) return reply('Usage: `!approve <id>`');
+            const list = loadJson(SUGGESTIONS_PATH, []);
+            const target = list.find((s) => Number(s.id) === id);
+            if (!target) return reply(`No suggestion found with id ${id}.`);
+            target.status = 'approved';
+            target.decidedBy = username;
+            target.decidedAt = new Date().toISOString();
+            saveJson(SUGGESTIONS_PATH, list);
+            return reply(`Suggestion #${id} approved.`);
+        }
+        case 'reject': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const id = parseInt((argText || '').trim(), 10);
+            if (!Number.isInteger(id)) return reply('Usage: `!reject <id>`');
+            const list = loadJson(SUGGESTIONS_PATH, []);
+            const target = list.find((s) => Number(s.id) === id);
+            if (!target) return reply(`No suggestion found with id ${id}.`);
+            target.status = 'rejected';
+            target.decidedBy = username;
+            target.decidedAt = new Date().toISOString();
+            saveJson(SUGGESTIONS_PATH, list);
+            return reply(`Suggestion #${id} rejected.`);
+        }
+        case 'grant': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const id = parseInt((argText || '').trim(), 10);
+            if (!Number.isInteger(id)) return reply('Usage: `!grant <id>`');
+            const list = loadJson(SUGGESTIONS_PATH, []);
+            const target = list.find((s) => Number(s.id) === id);
+            if (!target) return reply(`No suggestion found with id ${id}.`);
+            const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
+            if (!Array.isArray(knowledge.custom_facts)) knowledge.custom_facts = [];
+            const factId = nextId(knowledge.custom_facts);
+            knowledge.custom_facts.push({
+                id: factId,
+                text: target.text,
+                added_by: target.by,
+                added_at: new Date().toISOString().split('T')[0],
+                granted_from_suggestion: id,
+            });
+            saveJson(KNOWLEDGE_PATH, knowledge);
+            target.status = 'granted';
+            target.decidedBy = username;
+            target.decidedAt = new Date().toISOString();
+            saveJson(SUGGESTIONS_PATH, list);
+            return reply(`Suggestion #${id} granted as fact #${factId}.`);
         }
         case 'rank':
         case 'level': {
@@ -906,6 +1122,7 @@ client.on('interactionCreate', async (interaction) => {
 process.on('unhandledRejection', (e) => console.error('Unhandled rejection:', e));
 process.on('uncaughtException', (e) => console.error('Uncaught exception:', e));
 
+seedDataFiles();
 ensureDataFiles();
 
 const app = express();

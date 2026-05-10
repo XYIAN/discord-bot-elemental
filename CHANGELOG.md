@@ -8,6 +8,18 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [0.6.0] - 2026-05-10
+
+### Knowledge moderation parity
+
+- Added full knowledge curation suite: `!listfacts`, `!removefact`, `!faq <topic>`, `!opinion`, `!listopinions`, `!removeopinion`.
+- Added admin suggestion queue: `!suggestions [status]`, `!edit <id> <text>`, `!approve <id>`, `!reject <id>`, `!grant <id>` (promotes suggestion to a fact in `data/knowledge.json`).
+- Refactored suggestion schema to include `status` (pending/approved/rejected/granted) and `decidedBy/decidedAt`.
+- Added `data/opinions.json` data store with stable IDs.
+- Added `nextId()` helper in new shared module `scripts/lib/data-store.js` so suggestion/fact/opinion IDs are stable across delete + add cycles.
+- Added `seedDataFiles()` first-mount volume seeding: when `DATA_VOLUME_PATH` env is set, the bot copies repo `data/*.json` to the volume on first boot but never overwrites later edits.
+- Reorganized `!help` output by category (General, Knowledge, Admin moderation, Admin ops).
+
 ## [0.5.0] - 2026-05-10
 
 ### Community and onboarding parity

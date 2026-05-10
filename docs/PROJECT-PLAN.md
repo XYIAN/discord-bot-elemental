@@ -17,12 +17,14 @@ This repo is the baseline for launching a game-specific Discord bot for a new ga
 - Publish welcome and rules content
 - Auto-assign base role on join, welcome embed, DM pitch, reaction-role opt-in, every-other-day clan recruit
 
-## Phase 3 - Knowledge system
+## Phase 3 - Knowledge system (shipped in v0.6.0)
 
 - Define `knowledge.json` category map
 - Seed starter facts (wiki + screenshot-confirmed labels)
-- Enable suggestion workflow (`!suggest`, approvals)
-- Enable admin fact management (`!addfact`, `!removefact`)
+- Enable suggestion workflow (`!suggest`, approvals, edit, grant)
+- Enable admin fact management (`!addfact`, `!removefact`, `!faq`, `!listfacts`)
+- Opinions store (`!opinion`, `!listopinions`, `!removeopinion`)
+- Volume seeding when `DATA_VOLUME_PATH` is mounted
 
 ## Phase 4 - Gamification
 

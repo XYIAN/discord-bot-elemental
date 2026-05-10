@@ -27,6 +27,7 @@ Game-specific note:
 | `APP_TAGS` | App metadata reference (non-secret) |
 | `APP_ID` | App metadata reference (non-secret) |
 | `APP_PUBLIC_KEY` | App metadata reference (non-secret) |
+| `DATA_VOLUME_PATH` | If set, bot reads/writes data files from this path (Railway persistent volume). On first boot, repo `data/*.json` is copied into the volume; existing files are never overwritten. |
 
 ## App metadata (current)
 
