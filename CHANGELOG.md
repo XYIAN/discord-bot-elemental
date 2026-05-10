@@ -8,6 +8,18 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [0.5.0] - 2026-05-10
+
+### Community and onboarding parity
+
+- Added `guildMemberAdd` welcome flow: auto-assigns base role (`Elemental Initiate`), posts welcome embed in `#gameplay-general` with channel links, and DMs the member a Tempest pitch.
+- Added reaction-role wiring: `messageReactionAdd` and `messageReactionRemove` listeners grant/revoke `Elemental AI Enabled` based on the configured reaction emoji on tracked messages, persisted in `data/reaction-role.json`.
+- Added admin command `!setupreaction` that posts the canonical AI opt-in message and tracks its message ID automatically.
+- Added clan recruitment scheduler: every-other-day post to a configurable channel (defaults to `#tempest-recruit` then `#gameplay-general`) with Tempest-themed recruit embed.
+- Added admin command `!recruit` to fire the recruit embed immediately.
+- Added new config blocks in `config/bootstrap-config.json`: `welcomeChannelNames`, `reactionRole`, `clanRecruit`.
+- Expanded gateway intents (`GuildMessageReactions`) and partials (`Message`, `Reaction`, `User`) so reaction events fire on uncached messages.
+
 ## [0.4.0] - 2026-05-10
 
 ### Mirror release pipeline (changelog + deploy posts)

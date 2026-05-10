@@ -78,6 +78,27 @@
       "debug-log"
     ]
   },
+  "welcomeChannelNames": [
+    "gameplay-general",
+    "help-and-questions"
+  ],
+  "reactionRole": {
+    "enabled": true,
+    "emoji": "⚡",
+    "roleName": "Elemental AI Enabled",
+    "channelNames": [
+      "gameplay-general"
+    ],
+    "seedMessageIds": []
+  },
+  "clanRecruit": {
+    "enabled": true,
+    "intervalDays": 2,
+    "preferredChannelNames": [
+      "tempest-recruit",
+      "gameplay-general"
+    ]
+  },
   "channelBlueprint": {
     "publicCategories": [
       {

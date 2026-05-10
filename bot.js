@@ -97,6 +97,7 @@ const KNOWLEDGE_PATH = path.join(DATA_DIR, 'knowledge.json');
 const SUGGESTIONS_PATH = path.join(DATA_DIR, 'suggestions.json');
 const ACTIVITY_PATH = path.join(DATA_DIR, 'activity.json');
 const FEEDBACK_PATH = path.join(DATA_DIR, 'feedback.json');
+const REACTION_ROLE_PATH = path.join(DATA_DIR, 'reaction-role.json');
 const ACTIVITY_COOLDOWN_MS = 60_000;
 
 const CONFIG_PATH = path.join(__dirname, 'config', 'bootstrap-config.json');
@@ -124,6 +125,27 @@ CONFIG.opsChannels = {
         ? CONFIG.opsChannels.debug
         : ['debug-log'],
 };
+CONFIG.welcomeChannelNames = Array.isArray(CONFIG?.welcomeChannelNames) && CONFIG.welcomeChannelNames.length
+    ? CONFIG.welcomeChannelNames
+    : ['gameplay-general', 'help-and-questions'];
+CONFIG.reactionRole = {
+    enabled: CONFIG?.reactionRole?.enabled !== false,
+    emoji: CONFIG?.reactionRole?.emoji || '⚡',
+    roleName: CONFIG?.reactionRole?.roleName || 'Elemental AI Enabled',
+    channelNames: Array.isArray(CONFIG?.reactionRole?.channelNames) && CONFIG.reactionRole.channelNames.length
+        ? CONFIG.reactionRole.channelNames
+        : ['gameplay-general'],
+    seedMessageIds: Array.isArray(CONFIG?.reactionRole?.seedMessageIds) ? CONFIG.reactionRole.seedMessageIds : [],
+};
+CONFIG.clanRecruit = {
+    enabled: CONFIG?.clanRecruit?.enabled !== false,
+    intervalDays: Number.isInteger(CONFIG?.clanRecruit?.intervalDays) && CONFIG.clanRecruit.intervalDays > 0
+        ? CONFIG.clanRecruit.intervalDays
+        : 2,
+    preferredChannelNames: Array.isArray(CONFIG?.clanRecruit?.preferredChannelNames) && CONFIG.clanRecruit.preferredChannelNames.length
+        ? CONFIG.clanRecruit.preferredChannelNames
+        : ['tempest-recruit', 'gameplay-general'],
+};
 const APP_NAME = process.env.APP_NAME || CONFIG?.appMetadata?.name || 'Tempest Commander';
 const APP_ID = process.env.APP_ID || CONFIG?.appMetadata?.applicationId || process.env.CLIENT_ID || null;
 
@@ -149,6 +171,20 @@ function ensureDataFiles() {
     ensureFile(SUGGESTIONS_PATH, []);
     ensureFile(ACTIVITY_PATH, {});
     ensureFile(FEEDBACK_PATH, []);
+    ensureFile(REACTION_ROLE_PATH, { messageIds: CONFIG.reactionRole.seedMessageIds });
+}
+
+function getReactionRoleMessageIds() {
+    const data = loadJson(REACTION_ROLE_PATH, { messageIds: [] });
+    return Array.isArray(data.messageIds) ? data.messageIds : [];
+}
+
+function addReactionRoleMessageId(id) {
+    const data = loadJson(REACTION_ROLE_PATH, { messageIds: [] });
+    const list = Array.isArray(data.messageIds) ? data.messageIds : [];
+    if (!list.includes(id)) list.push(id);
+    saveJson(REACTION_ROLE_PATH, { messageIds: list });
+    return list;
 }
 
 function isAdmin(member) {
@@ -281,6 +317,8 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
                     '`!blueprint` / `/blueprint` - show planned channel blueprint',
                     '`!post-changelog [x.y.z]` - admin: re-post changelog to #changelog',
                     '`!debug-ping` - admin: smoke-test #debug-log post',
+                    '`!recruit` - admin: post Tempest clan recruit embed now',
+                    '`!setupreaction` - admin: post the AI opt-in reaction message',
                 ].join('\n')
             );
         case 'post-changelog':
@@ -308,6 +346,17 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             if (!isAdmin(member)) return reply('Admin only command.');
             const ok = await sendDebug({ content: `🔧 Debug ping by ${username} - bot is connected and able to write to #debug-log.` });
             return reply(ok ? 'Sent debug ping.' : 'No #debug-log channel found.');
+        }
+        case 'recruit': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const ok = await sendClanRecruit();
+            return reply(ok ? 'Recruit embed sent.' : 'No recruit channel found.');
+        }
+        case 'setupreaction':
+        case 'setup-reaction': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const result = await sendReactionRoleOptInMessage();
+            return reply(result.posted ? `Setup reaction message: ${result.status}` : `Setup reaction failed: ${result.status}`);
         }
         case 'suggest': {
             if (!argText) return reply('Usage: `!suggest <text>`');
@@ -398,9 +447,10 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.DirectMessages,
     ],
-    partials: [Partials.Channel],
+    partials: [Partials.Channel, Partials.Message, Partials.Reaction, Partials.User],
 });
 
 let dailyResetLastSentDateKey = null;
@@ -437,6 +487,43 @@ async function findChangelogChannel() {
 
 async function findDebugChannel() {
     return findChannelByNames(CONFIG.opsChannels.debug);
+}
+
+async function findWelcomeChannel() {
+    return findChannelByNames(CONFIG.welcomeChannelNames);
+}
+
+async function findRecruitChannel() {
+    return findChannelByNames(CONFIG.clanRecruit.preferredChannelNames);
+}
+
+async function findReactionRoleChannel() {
+    return findChannelByNames(CONFIG.reactionRole.channelNames);
+}
+
+async function findRoleByName(roleName) {
+    const guild = await getActiveGuild();
+    if (!guild) return null;
+    const roles = await guild.roles.fetch().catch(() => null);
+    if (!roles) return null;
+    return roles.find((r) => r && r.name === roleName) || null;
+}
+
+async function buildChannelLinkIndex() {
+    const guild = await getActiveGuild();
+    if (!guild) return new Map();
+    const channels = await guild.channels.fetch().catch(() => null);
+    if (!channels) return new Map();
+    const map = new Map();
+    for (const ch of channels.values()) {
+        if (ch && ch.type === 0) map.set(ch.name, ch.id);
+    }
+    return map;
+}
+
+function channelMention(name, channelIndex) {
+    const id = channelIndex.get(name);
+    return id ? `<#${id}>` : `#${name}`;
 }
 
 async function sendDebug(content) {
@@ -525,6 +612,219 @@ function startDailyResetScheduler() {
     console.log(`Daily reset reminder scheduler active (${CONFIG.dailyResetReminder.timezone} @ ${String(CONFIG.dailyResetReminder.hour).padStart(2, '0')}:${String(CONFIG.dailyResetReminder.minute).padStart(2, '0')}).`);
 }
 
+async function buildWelcomeEmbed(member) {
+    const channelIndex = await buildChannelLinkIndex();
+    const ai = channelMention('elemental-ai', channelIndex);
+    const help = channelMention('help-and-questions', channelIndex);
+    const events = channelMention('codes-and-events', channelIndex);
+    const gameplay = channelMention('gameplay-general', channelIndex);
+    return new EmbedBuilder()
+        .setTitle(`⚡ Welcome to Tempest, ${member.user.username}`)
+        .setColor(0x5865f2)
+        .setDescription(
+            [
+                `Glad to have you in the storm. We are an active Legend of Elements community focused on coordinated play, daily discipline, and clan growth.`,
+                '',
+                '**Start here**',
+                `• ${ai} - bot commands and strategy AI`,
+                `• ${gameplay} - daily progression and discussion`,
+                `• ${events} - codes, events, and timers`,
+                `• ${help} - introduce yourself and ask anything`,
+                '',
+                '**Daily standards**',
+                '• Complete your daily class',
+                '• Register for clan raid',
+                '• Stay active in voice and text',
+                '',
+                `React with ${CONFIG.reactionRole.emoji} on the opt-in message in ${gameplay} to enable AI access.`,
+            ].join('\n')
+        )
+        .setFooter({ text: `${APP_NAME} - Tempest discipline wins seasons.` })
+        .setTimestamp();
+}
+
+function buildRecruitEmbed() {
+    return new EmbedBuilder()
+        .setTitle('⚡ Tempest is Recruiting')
+        .setColor(0xffd700)
+        .setDescription(
+            [
+                'Tempest is a competitive Legend of Elements clan. We win seasons through daily discipline and coordinated play.',
+                '',
+                '**What we offer**',
+                '• Active daily community',
+                '• Real strategy discussions, not noise',
+                '• Coordinated clan raids and events',
+                '• Direct access to a Tempest-tuned AI strategy bot',
+                '',
+                '**Requirements**',
+                '• Daily class completion',
+                '• Clan raid registration',
+                '• Discord activity and respect for officers',
+                '',
+                'DM an officer or post in `#help-and-questions` to apply.',
+            ].join('\n')
+        )
+        .setFooter({ text: `${APP_NAME} - Clan Recruitment` })
+        .setTimestamp();
+}
+
+async function sendClanRecruit() {
+    const channel = await findRecruitChannel();
+    if (!channel) {
+        console.log('Recruit post skipped: no recruit channel found.');
+        return false;
+    }
+    try {
+        await channel.send({ embeds: [buildRecruitEmbed()] });
+        console.log(`Recruit post sent to #${channel.name}`);
+        return true;
+    } catch (error) {
+        console.error('Recruit post failed:', error.message);
+        return false;
+    }
+}
+
+let recruitTimer = null;
+let recruitDayCounter = 0;
+
+function startClanRecruitScheduler() {
+    if (!CONFIG.clanRecruit.enabled) {
+        console.log('Clan recruit scheduler disabled by config.');
+        return;
+    }
+    if (recruitTimer) clearInterval(recruitTimer);
+    const dayMs = 24 * 60 * 60 * 1000;
+    recruitTimer = setInterval(async () => {
+        recruitDayCounter += 1;
+        if (recruitDayCounter % CONFIG.clanRecruit.intervalDays === 0) {
+            await sendClanRecruit();
+        }
+    }, dayMs);
+    console.log(`Clan recruit scheduler active (every ${CONFIG.clanRecruit.intervalDays} day${CONFIG.clanRecruit.intervalDays === 1 ? '' : 's'}).`);
+}
+
+function buildReactionRoleOptInMessage() {
+    return [
+        `**${CONFIG.reactionRole.roleName} Opt-In**`,
+        '',
+        `React with ${CONFIG.reactionRole.emoji} below to enable AI access in #elemental-ai.`,
+        '',
+        'You can remove the reaction at any time to opt out.',
+    ].join('\n');
+}
+
+async function sendReactionRoleOptInMessage() {
+    const channel = await findReactionRoleChannel();
+    if (!channel) return { posted: false, status: 'no reaction-role channel found' };
+    try {
+        const msg = await channel.send({ content: buildReactionRoleOptInMessage() });
+        await msg.react(CONFIG.reactionRole.emoji);
+        addReactionRoleMessageId(msg.id);
+        return { posted: true, status: `posted to #${channel.name} (msg ${msg.id})`, messageId: msg.id };
+    } catch (error) {
+        return { posted: false, status: `setupreaction failed: ${error.message}` };
+    }
+}
+
+async function handleNewMember(member) {
+    try {
+        const baseRoleName = CONFIG?.roleNames?.base;
+        if (baseRoleName) {
+            const role = await findRoleByName(baseRoleName);
+            if (role && !member.roles.cache.has(role.id)) {
+                await member.roles.add(role).catch((e) => console.error(`Could not add base role: ${e.message}`));
+            } else if (!role) {
+                console.log(`Base role "${baseRoleName}" not found in guild; skipping auto-assign.`);
+            }
+        }
+        const welcomeChannel = await findWelcomeChannel();
+        if (welcomeChannel) {
+            const embed = await buildWelcomeEmbed(member);
+            await welcomeChannel.send({ content: `<@${member.id}>`, embeds: [embed] }).catch((e) => console.error(`Welcome post failed: ${e.message}`));
+        }
+        try {
+            const dmEmbed = new EmbedBuilder()
+                .setTitle(`Welcome to Tempest, ${member.user.username}`)
+                .setColor(0x5865f2)
+                .setDescription(
+                    [
+                        'Glad to have you in the storm.',
+                        '',
+                        'Tempest is an active Legend of Elements clan focused on daily discipline and coordinated play.',
+                        '',
+                        '**Quick start**',
+                        '• Complete your daily class',
+                        '• Register for clan raid',
+                        `• React ${CONFIG.reactionRole.emoji} on the opt-in message in the server to enable AI access`,
+                    ].join('\n')
+                )
+                .setFooter({ text: `${APP_NAME} - Tempest discipline wins seasons.` });
+            await member.send({ embeds: [dmEmbed] });
+        } catch {
+            console.log(`Welcome DM blocked for ${member.user.username}.`);
+        }
+        await sendDebug({ content: `👋 Welcome posted for <@${member.id}> (${member.user.username})` });
+    } catch (error) {
+        console.error('handleNewMember failed:', error.message);
+    }
+}
+
+async function handleReactionRoleAdd(reaction, user) {
+    if (user.bot) return;
+    if (!CONFIG.reactionRole.enabled) return;
+    try {
+        if (reaction.partial) {
+            await reaction.fetch().catch(() => null);
+        }
+        const messageId = reaction.message.id;
+        const tracked = getReactionRoleMessageIds();
+        if (!tracked.includes(messageId)) return;
+        const emojiName = reaction.emoji?.name;
+        if (emojiName !== CONFIG.reactionRole.emoji) return;
+        const guild = reaction.message.guild;
+        if (!guild) return;
+        const role = await findRoleByName(CONFIG.reactionRole.roleName);
+        if (!role) {
+            console.log(`Reaction-role: role "${CONFIG.reactionRole.roleName}" not found; skipping grant.`);
+            return;
+        }
+        const member = await guild.members.fetch(user.id).catch(() => null);
+        if (!member) return;
+        if (member.roles.cache.has(role.id)) return;
+        await member.roles.add(role).catch((e) => console.error(`Reaction-role grant failed: ${e.message}`));
+        console.log(`Reaction-role: granted ${role.name} to ${user.username}`);
+    } catch (error) {
+        console.error('handleReactionRoleAdd failed:', error.message);
+    }
+}
+
+async function handleReactionRoleRemove(reaction, user) {
+    if (user.bot) return;
+    if (!CONFIG.reactionRole.enabled) return;
+    try {
+        if (reaction.partial) {
+            await reaction.fetch().catch(() => null);
+        }
+        const messageId = reaction.message.id;
+        const tracked = getReactionRoleMessageIds();
+        if (!tracked.includes(messageId)) return;
+        const emojiName = reaction.emoji?.name;
+        if (emojiName !== CONFIG.reactionRole.emoji) return;
+        const guild = reaction.message.guild;
+        if (!guild) return;
+        const role = await findRoleByName(CONFIG.reactionRole.roleName);
+        if (!role) return;
+        const member = await guild.members.fetch(user.id).catch(() => null);
+        if (!member) return;
+        if (!member.roles.cache.has(role.id)) return;
+        await member.roles.remove(role).catch((e) => console.error(`Reaction-role remove failed: ${e.message}`));
+        console.log(`Reaction-role: removed ${role.name} from ${user.username}`);
+    } catch (error) {
+        console.error('handleReactionRoleRemove failed:', error.message);
+    }
+}
+
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag} (v${BOT_VERSION})`);
     console.log(`App: ${APP_NAME}${APP_ID ? ` [${APP_ID}]` : ''}`);
@@ -538,7 +838,12 @@ client.once('ready', async () => {
     await announceDeployment(changelogResult.status);
 
     startDailyResetScheduler();
+    startClanRecruitScheduler();
 });
+
+client.on('guildMemberAdd', (member) => handleNewMember(member));
+client.on('messageReactionAdd', (reaction, user) => handleReactionRoleAdd(reaction, user));
+client.on('messageReactionRemove', (reaction, user) => handleReactionRoleRemove(reaction, user));
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;

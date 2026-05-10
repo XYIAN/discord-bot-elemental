@@ -9,12 +9,13 @@ This repo is the baseline for launching a game-specific Discord bot for a new ga
 - Discord application + bot token configured
 - Admin/debug/changelog channel wiring completed
 
-## Phase 2 - Identity and community model
+## Phase 2 - Identity and community model (shipped in v0.5.0)
 
 - Finalize game persona (tone, style, boundaries)
 - Finalize clan naming (`Tempest`) and role hierarchy (`XY Tempest Verified`, `XY Tempest Officer`)
 - Define channel taxonomy and permissions
 - Publish welcome and rules content
+- Auto-assign base role on join, welcome embed, DM pitch, reaction-role opt-in, every-other-day clan recruit
 
 ## Phase 3 - Knowledge system
 
