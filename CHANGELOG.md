@@ -8,6 +8,14 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [0.3.3] - 2026-05-10
+
+### Daily reset reminder at 9 PM PT
+
+- Added a themed in-process daily reset reminder scheduler for the Elemental bot at **9:00 PM Pacific**.
+- Added channel fallback targeting (`#codes-and-events` -> `#gameplay-general` -> `#debug-log`) and reset message copy covering daily class completion and clan raid registration.
+- Documented reminder behavior and config location in `docs/ENV-AND-CHANNELS.md`.
+
 ## [0.3.2] - 2026-05-10
 
 ### Slash command timeout fix

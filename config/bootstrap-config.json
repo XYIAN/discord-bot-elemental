@@ -59,6 +59,17 @@
     "codes-and-events",
     "help-and-questions"
   ],
+  "dailyResetReminder": {
+    "enabled": true,
+    "timezone": "America/Los_Angeles",
+    "hour": 21,
+    "minute": 0,
+    "preferredChannelNames": [
+      "codes-and-events",
+      "gameplay-general",
+      "debug-log"
+    ]
+  },
   "channelBlueprint": {
     "publicCategories": [
       {

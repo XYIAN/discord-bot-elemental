@@ -41,6 +41,15 @@ CONFIG.activityTiers = Array.isArray(CONFIG.activityTiers) ? CONFIG.activityTier
 CONFIG.channelBlueprint = CONFIG.channelBlueprint || { publicCategories: [{ name: 'strategy', channels: [] }], privateClanCategory: { name: 'tempest-clan', channels: [] } };
 CONFIG.clanRoleNames = CONFIG.clanRoleNames || { verified: 'XY Tempest Verified', officer: 'XY Tempest Officer', mainChat: 'tempest-clan-chat' };
 CONFIG.adminRoleNames = Array.isArray(CONFIG.adminRoleNames) ? CONFIG.adminRoleNames : ['Admin'];
+CONFIG.dailyResetReminder = {
+    enabled: CONFIG?.dailyResetReminder?.enabled !== false,
+    timezone: CONFIG?.dailyResetReminder?.timezone || 'America/Los_Angeles',
+    hour: Number.isInteger(CONFIG?.dailyResetReminder?.hour) ? CONFIG.dailyResetReminder.hour : 21,
+    minute: Number.isInteger(CONFIG?.dailyResetReminder?.minute) ? CONFIG.dailyResetReminder.minute : 0,
+    preferredChannelNames: Array.isArray(CONFIG?.dailyResetReminder?.preferredChannelNames) && CONFIG.dailyResetReminder.preferredChannelNames.length
+        ? CONFIG.dailyResetReminder.preferredChannelNames
+        : ['codes-and-events', 'gameplay-general', 'debug-log'],
+};
 const APP_NAME = process.env.APP_NAME || CONFIG?.appMetadata?.name || 'Tempest Commander';
 const APP_ID = process.env.APP_ID || CONFIG?.appMetadata?.applicationId || process.env.CLIENT_ID || null;
 
@@ -113,6 +122,44 @@ function buildProgressBar(points) {
     const progress = Math.min(Math.max(points - start, 0), span);
     const filled = Math.floor((progress / span) * 10);
     return `${'█'.repeat(filled)}${'░'.repeat(10 - filled)}`;
+}
+
+function getTimePartsInZone(date, timeZone) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        hour12: false,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).formatToParts(date);
+    const read = (type) => parts.find((p) => p.type === type)?.value || '00';
+    return {
+        year: Number(read('year')),
+        month: Number(read('month')),
+        day: Number(read('day')),
+        hour: Number(read('hour')),
+        minute: Number(read('minute')),
+    };
+}
+
+function formatDateKey(parts) {
+    return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+}
+
+function buildDailyResetMessage() {
+    const localTime = `${String(CONFIG.dailyResetReminder.hour).padStart(2, '0')}:${String(CONFIG.dailyResetReminder.minute).padStart(2, '0')}`;
+    return [
+        `⚡ **Tempest Daily Reset Reminder (${localTime} PT)**`,
+        '',
+        'Daily reset is live. Stay on pace and lock in your progress:',
+        '• Complete your **daily class**',
+        '• **Register for clan raid** before the window closes',
+        '• Clear key dailies and event tasks for steady growth',
+        '',
+        'Tempest discipline wins seasons.',
+    ].join('\n');
 }
 
 function buildSlashCommands() {
@@ -254,6 +301,57 @@ const client = new Client({
     partials: [Partials.Channel],
 });
 
+let dailyResetLastSentDateKey = null;
+let dailyResetTimer = null;
+
+async function findDailyResetChannel() {
+    const guildId = process.env.GUILD_ID;
+    const preferred = CONFIG.dailyResetReminder.preferredChannelNames;
+    const guild = guildId ? await client.guilds.fetch(guildId).catch(() => null) : (client.guilds.cache.first() || null);
+    if (!guild) return null;
+    const channels = await guild.channels.fetch();
+    for (const name of preferred) {
+        const match = channels.find((ch) => ch && ch.type === 0 && ch.name === name);
+        if (match) return match;
+    }
+    return null;
+}
+
+async function sendDailyResetReminder() {
+    const target = await findDailyResetChannel();
+    if (!target) {
+        console.log('Daily reset reminder skipped: no target text channel found.');
+        return false;
+    }
+    await target.send(buildDailyResetMessage());
+    console.log(`Daily reset reminder sent to #${target.name}`);
+    return true;
+}
+
+function startDailyResetScheduler() {
+    if (!CONFIG.dailyResetReminder.enabled) {
+        console.log('Daily reset reminder disabled by config.');
+        return;
+    }
+    if (dailyResetTimer) clearInterval(dailyResetTimer);
+    const tick = async () => {
+        const now = new Date();
+        const parts = getTimePartsInZone(now, CONFIG.dailyResetReminder.timezone);
+        if (parts.hour !== CONFIG.dailyResetReminder.hour || parts.minute !== CONFIG.dailyResetReminder.minute) return;
+        const dateKey = formatDateKey(parts);
+        if (dailyResetLastSentDateKey === dateKey) return;
+        try {
+            const sent = await sendDailyResetReminder();
+            if (sent) dailyResetLastSentDateKey = dateKey;
+        } catch (error) {
+            console.error('Daily reset reminder failed:', error.message);
+        }
+    };
+    tick();
+    dailyResetTimer = setInterval(tick, 30_000);
+    console.log(`Daily reset reminder scheduler active (${CONFIG.dailyResetReminder.timezone} @ ${String(CONFIG.dailyResetReminder.hour).padStart(2, '0')}:${String(CONFIG.dailyResetReminder.minute).padStart(2, '0')}).`);
+}
+
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag} (v${BOT_VERSION})`);
     console.log(`App: ${APP_NAME}${APP_ID ? ` [${APP_ID}]` : ''}`);
@@ -261,6 +359,7 @@ client.once('ready', async () => {
     if (!process.env.GUILD_ID) console.log('Warning: GUILD_ID is missing; setup scripts cannot target a server.');
     console.log('Note: Prefix commands (!ping, !help, etc.) require Message Content Intent enabled in Discord Developer Portal.');
     await registerGuildSlashCommands();
+    startDailyResetScheduler();
 });
 
 client.on('messageCreate', async (message) => {

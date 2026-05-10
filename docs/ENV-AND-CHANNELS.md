@@ -75,6 +75,13 @@ Fill this out when building the new game community:
 | 800 | Tempest High Rank 1 |
 | 1500 | Tempest Left Marshal |
 
+## Daily reset reminder
+
+- Runs inside the bot process at **9:00 PM Pacific** (`America/Los_Angeles`).
+- Config location: `config/bootstrap-config.json` -> `dailyResetReminder`.
+- Default post target priority: `#codes-and-events`, then `#gameplay-general`, then `#debug-log`.
+- Reminder theme includes: complete daily class + register for clan raid.
+
 ## Blueprint references
 
 - Channel taxonomy: `docs/CHANNEL-BLUEPRINT.md`
