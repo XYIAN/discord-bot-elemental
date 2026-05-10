@@ -12,6 +12,9 @@ Versioning:
 
 ### Command reliability + ops channel parity
 
+- Added Tempest Commander banner assets:
+  - generated source banner
+  - Discord-ready `680x240` bot banner crop
 - Added guild slash commands (`/ping`, `/help`, `/blueprint`, `/rank`, `/leaderboard`) so core smoke-test commands work even when Message Content Intent is disabled for prefix commands.
 - Refactored command execution into a shared handler used by both message commands and slash interactions.
 - Added startup guidance log clarifying that `!` prefix commands require Message Content Intent in Discord Developer Portal.
