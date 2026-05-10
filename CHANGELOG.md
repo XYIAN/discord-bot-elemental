@@ -12,6 +12,9 @@ Versioning:
 ### Assets
 
 - Added generated Tempest / Legend of Elements Discord server icon at `assets/tempest-elements-discord-icon.png`
+- Added square Discord-ready crops:
+  - `assets/tempest-elements-discord-icon-square.png` (`1024x1024`)
+  - `assets/tempest-elements-discord-icon-512.png` (`512x512`, preferred for Discord upload)
 
 ## [0.2.0] - 2026-04-20
 
