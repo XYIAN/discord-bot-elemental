@@ -8,6 +8,14 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [0.3.4] - 2026-05-10
+
+### Themed welcome + recruiting onboarding messages
+
+- Upgraded `scripts/seed-welcome-posts.js` to seed richer themed onboarding messages with embeds in key channels.
+- Added dynamic channel-link insertion so welcome posts reference live channel IDs (e.g. AI hub, events, help, changelog, debug).
+- Added recruitment-focused general intro copy aligned to Tempest clan positioning and daily accountability tone.
+
 ## [0.3.3] - 2026-05-10
 
 ### Daily reset reminder at 9 PM PT
