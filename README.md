@@ -3,6 +3,7 @@
 Game-specific Discord bot template for building a branded knowledge + community assistant (persona, facts, role progression, strategy gamification) without carrying over old game content.
 
 Current target game context:
+
 - Game: **Legend of Elements**
 - Main server name: **not finalized** (keep configurable)
 - Private clan identity: **Tempest**
@@ -21,6 +22,7 @@ This repo is a clean foundation for a new game community bot using the proven ar
 All game/theme content should be configured for this new game only.
 
 Clan-specific defaults currently staged in config:
+
 - `XY Tempest Verified`
 - `XY Tempest Officer`
 
@@ -32,15 +34,21 @@ Clan-specific defaults currently staged in config:
 npm install
 ```
 
-2. Copy `.env.example` to `.env` and set real values.
+1. Copy `.env.example` to `.env` and set real values.
 
-3. Run locally:
+Minimum required runtime vars:
+
+- `DISCORD_TOKEN`
+- `CLIENT_ID`
+- `GUILD_ID`
+
+1. Run locally:
 
 ```bash
 npm start
 ```
 
-4. Deploy to Railway (after setting environment variables).
+1. Deploy to Railway (after setting environment variables).
 
 ## Architecture
 
@@ -64,6 +72,9 @@ npm start
 - `docs/CHANNEL-BLUEPRINT.md` - public strategy and private Tempest clan channels
 - `docs/SERVER-BOT-SETUP.md` - UI vs CLI setup workflow for Discord + Railway
 - `docs/ENV-AND-CHANNELS.md` - env variables, role map, and tier ladder
+- `docs/BOOTSTRAP-RUNBOOK.md` - end-to-end implementation sequence
+- `docs/CLI-SETUP-COMMANDS.md` - copy/paste command cookbook
+- `docs/BACKSTORY.md` - project intent and future-agent constraints
 
 ## Mandatory Release Rule
 

@@ -12,6 +12,7 @@ const path = require('path');
 const express = require('express');
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env.local'), override: false });
 
 function parseChangelog() {
     try {
@@ -32,75 +33,16 @@ const ACTIVITY_PATH = path.join(DATA_DIR, 'activity.json');
 const FEEDBACK_PATH = path.join(DATA_DIR, 'feedback.json');
 const ACTIVITY_COOLDOWN_MS = 60_000;
 
-const CONFIG = {
-    // Keep top-level server branding flexible until finalized.
-    gameProfile: {
-        gameName: 'Legend of Elements',
-        serverDisplayName: null, // e.g. "Tempest of Elements" (decide later)
-        organizationType: 'clan', // game term uses clans, not guilds
-    },
-    roleNames: {
-        base: 'Elemental Initiate',
-        tier1: 'Tempest High Rank 3',
-        tier2: 'Tempest High Rank 2',
-        tier3: 'Tempest High Rank 1',
-        tier4: 'Tempest Left Marshal',
-    },
-    clanRoleNames: {
-        verified: 'XY Tempest Verified',
-        officer: 'XY Tempest Officer',
-        mainChat: 'tempest-clan-chat',
-    },
-    activityTiers: [
-        { name: 'Tempest High Rank 3', threshold: 100 },
-        { name: 'Tempest High Rank 2', threshold: 350 },
-        { name: 'Tempest High Rank 1', threshold: 800 },
-        { name: 'Tempest Left Marshal', threshold: 1500 },
-    ],
-    activityChannelIds: new Set([]), // Fill after channel creation
-    activityChannelNames: new Set([
-        'gameplay-general',
-        'crafting-realm',
-        'mount-realm',
-        'trial-tower',
-        'arena',
-        'builds-and-refines',
-        'spirits-and-relics',
-        'codes-and-events',
-        'help-and-questions',
-    ]),
-    channelBlueprint: {
-        publicCategories: [
-            {
-                name: 'strategy',
-                channels: [
-                    'gameplay-general',
-                    'crafting-realm',
-                    'mount-realm',
-                    'trial-tower',
-                    'arena',
-                    'builds-and-refines',
-                    'spirits-and-relics',
-                    'codes-and-events',
-                    'help-and-questions',
-                ],
-            },
-        ],
-        privateClanCategory: {
-            name: 'tempest-clan',
-            channels: [
-                'tempest-clan-chat',
-                'clan-quests',
-                'clan-events',
-                'clan-vault',
-                'treasure-trove',
-                'clan-rank-promotion',
-                'officer-planning',
-            ],
-        },
-    },
-    adminRoleNames: ['XY Tempest Officer', 'Admin', 'Moderator'],
-};
+const CONFIG_PATH = path.join(__dirname, 'config', 'bootstrap-config.json');
+const CONFIG = loadJson(CONFIG_PATH, {});
+CONFIG.activityChannelIds = new Set(CONFIG.activityChannelIds || []);
+CONFIG.activityChannelNames = new Set(CONFIG.activityChannelNames || []);
+CONFIG.activityTiers = Array.isArray(CONFIG.activityTiers) ? CONFIG.activityTiers : [];
+CONFIG.channelBlueprint = CONFIG.channelBlueprint || { publicCategories: [{ name: 'strategy', channels: [] }], privateClanCategory: { name: 'tempest-clan', channels: [] } };
+CONFIG.clanRoleNames = CONFIG.clanRoleNames || { verified: 'XY Tempest Verified', officer: 'XY Tempest Officer', mainChat: 'tempest-clan-chat' };
+CONFIG.adminRoleNames = Array.isArray(CONFIG.adminRoleNames) ? CONFIG.adminRoleNames : ['Admin'];
+const APP_NAME = process.env.APP_NAME || CONFIG?.appMetadata?.name || 'Tempest Commander';
+const APP_ID = process.env.APP_ID || CONFIG?.appMetadata?.applicationId || process.env.CLIENT_ID || null;
 
 function ensureFile(filePath, fallback) {
     if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, JSON.stringify(fallback, null, 2));
@@ -186,6 +128,9 @@ const client = new Client({
 
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag} (v${BOT_VERSION})`);
+    console.log(`App: ${APP_NAME}${APP_ID ? ` [${APP_ID}]` : ''}`);
+    if (!process.env.CLIENT_ID) console.log('Warning: CLIENT_ID is missing; invite/build scripts may fail.');
+    if (!process.env.GUILD_ID) console.log('Warning: GUILD_ID is missing; setup scripts cannot target a server.');
 });
 
 client.on('messageCreate', async (message) => {

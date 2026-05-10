@@ -7,6 +7,31 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [0.3.0] - 2026-05-10
+
+### Full bootstrap upgrade (repo + runbooks + automation scripts)
+
+- Added centralized bootstrap configuration at `config/bootstrap-config.json`
+- Added executable setup scripts:
+  - `scripts/create-roles.js`
+  - `scripts/create-channels.js`
+  - `scripts/apply-permissions.js`
+  - `scripts/seed-welcome-posts.js`
+- Added shared script utilities:
+  - `scripts/lib/discord-api.js`
+  - `scripts/lib/bootstrap-config.js`
+- Added npm setup commands:
+  - `setup:roles`, `setup:channels`, `setup:permissions`, `setup:welcome`
+  - `setup:dry-run`, `setup:all`
+- Updated runtime config loading in `bot.js` to consume bootstrap config and `.env.local`
+- Expanded operator docs and future-agent handoff docs:
+  - `docs/BACKSTORY.md`
+  - `docs/BOOTSTRAP-RUNBOOK.md`
+  - `docs/CLI-SETUP-COMMANDS.md`
+  - updates to `README.md`, `docs/ENV-AND-CHANNELS.md`, and `docs/SERVER-BOT-SETUP.md`
+- Clarified required vs optional environment variables (only `DISCORD_TOKEN`, `CLIENT_ID`, and `GUILD_ID` are required for current starter runtime)
+- Added troubleshooting guidance for `Unknown Guild (10004)` bootstrap failures
+
 ## [0.2.1] - 2026-05-10
 
 ### Assets

@@ -52,10 +52,15 @@ railway up
 DISCORD_TOKEN=...
 CLIENT_ID=...
 GUILD_ID=...
-ADMIN_WEBHOOK=...
-GENERAL_CHAT_WEBHOOK=...
 PORT=3000
 ```
+
+Only these three are required for the current starter runtime:
+- `DISCORD_TOKEN`
+- `CLIENT_ID`
+- `GUILD_ID`
+
+Webhook and AI keys are optional unless those features are enabled.
 
 ## 5) Post-boot validation checklist
 
@@ -75,3 +80,39 @@ If you want full terminal-driven setup, add scripts:
 - `scripts/seed-welcome-posts.js`
 
 These can consume `docs/CHANNEL-BLUEPRINT.md` and `CONFIG` constants to avoid duplication.
+
+## 7) Current executable setup scripts
+
+This repo now includes:
+
+- `scripts/create-roles.js`
+- `scripts/create-channels.js`
+- `scripts/apply-permissions.js`
+- `scripts/seed-welcome-posts.js`
+
+Run preview:
+
+```bash
+npm run setup:dry-run
+```
+
+Run apply:
+
+```bash
+npm run setup:all
+```
+
+## 8) Troubleshooting
+
+### `Unknown Guild (10004)` from setup scripts
+
+Cause:
+- Bot token is valid but bot user is not added to the target server, or `GUILD_ID` is wrong.
+
+Fix:
+1. Confirm `GUILD_ID` is the server ID (Developer Mode → right-click server → Copy Server ID).
+2. Re-run bot invite URL with scopes:
+   - `bot`
+   - `applications.commands`
+3. Ensure the invited app is **Tempest Commander** (Application ID `1502933339642921000`).
+4. Retry `npm run setup:dry-run`.

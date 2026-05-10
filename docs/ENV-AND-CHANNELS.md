@@ -12,16 +12,31 @@ Game-specific note:
 | `DISCORD_TOKEN` | Bot token |
 | `CLIENT_ID` | Discord application client ID |
 | `GUILD_ID` | Discord server ID (Discord API naming; still used even when game calls it a clan) |
-| `ADMIN_WEBHOOK` | Admin/debug webhook |
-| `GENERAL_CHAT_WEBHOOK` | General channel webhook (optional if using webhook flow) |
 
 ## Optional environment variables
 
 | Variable | Purpose |
 |---|---|
+| `ADMIN_WEBHOOK` | Admin/debug webhook (only if webhook-based logging is enabled) |
+| `GENERAL_CHAT_WEBHOOK` | General channel webhook (only if webhook posting is enabled) |
 | `OPENAI_API_KEY` | AI response engine |
 | `OWNER_ID` | Owner-only commands |
 | `PORT` | Health endpoint port (Railway sets this) |
+| `APP_NAME` | App metadata reference (non-secret) |
+| `APP_DESCRIPTION` | App metadata reference (non-secret) |
+| `APP_TAGS` | App metadata reference (non-secret) |
+| `APP_ID` | App metadata reference (non-secret) |
+| `APP_PUBLIC_KEY` | App metadata reference (non-secret) |
+
+## App metadata (current)
+
+| Field | Value |
+|---|---|
+| Name | `Tempest Commander` |
+| Description | `A Legend of Elements community bot for Tempest: strategy help, clan coordination, knowledge tracking, rank progression, and gameplay guides for builds, spirits, relics, realms, arena, and events.` |
+| Tags | `gaming`, `community`, `discord-bot`, `strategy`, `legendofelements` |
+| Application ID | `1502933339642921000` |
+| Public Key | `975e1a45bbbee7e4f202a798635aa84ca1ef5990c0a5f6fca0fb0dd99a0e4c5b` |
 
 ## Channel map template
 

@@ -1,0 +1,97 @@
+{
+  "appMetadata": {
+    "name": "Tempest Commander",
+    "description": "A Legend of Elements community bot for Tempest: strategy help, clan coordination, knowledge tracking, rank progression, and gameplay guides for builds, spirits, relics, realms, arena, and events.",
+    "tags": [
+      "gaming",
+      "community",
+      "discord-bot",
+      "strategy",
+      "legendofelements"
+    ],
+    "applicationId": "1502933339642921000",
+    "publicKey": "975e1a45bbbee7e4f202a798635aa84ca1ef5990c0a5f6fca0fb0dd99a0e4c5b"
+  },
+  "gameProfile": {
+    "gameName": "Legend of Elements",
+    "serverDisplayName": null,
+    "organizationType": "clan"
+  },
+  "roleNames": {
+    "base": "Elemental Initiate",
+    "tier1": "Tempest High Rank 3",
+    "tier2": "Tempest High Rank 2",
+    "tier3": "Tempest High Rank 1",
+    "tier4": "Tempest Left Marshal"
+  },
+  "clanRoleNames": {
+    "verified": "XY Tempest Verified",
+    "officer": "XY Tempest Officer",
+    "mainChat": "tempest-clan-chat"
+  },
+  "activityTiers": [
+    {
+      "name": "Tempest High Rank 3",
+      "threshold": 100
+    },
+    {
+      "name": "Tempest High Rank 2",
+      "threshold": 350
+    },
+    {
+      "name": "Tempest High Rank 1",
+      "threshold": 800
+    },
+    {
+      "name": "Tempest Left Marshal",
+      "threshold": 1500
+    }
+  ],
+  "activityChannelIds": [],
+  "activityChannelNames": [
+    "gameplay-general",
+    "crafting-realm",
+    "mount-realm",
+    "trial-tower",
+    "arena",
+    "builds-and-refines",
+    "spirits-and-relics",
+    "codes-and-events",
+    "help-and-questions"
+  ],
+  "channelBlueprint": {
+    "publicCategories": [
+      {
+        "name": "strategy",
+        "channels": [
+          "gameplay-general",
+          "crafting-realm",
+          "mount-realm",
+          "trial-tower",
+          "arena",
+          "builds-and-refines",
+          "spirits-and-relics",
+          "codes-and-events",
+          "help-and-questions"
+        ]
+      }
+    ],
+    "privateClanCategory": {
+      "name": "tempest-clan",
+      "channels": [
+        "tempest-clan-chat",
+        "clan-quests",
+        "clan-events",
+        "clan-vault",
+        "treasure-trove",
+        "clan-rank-promotion",
+        "officer-planning"
+      ]
+    }
+  },
+  "adminRoleNames": [
+    "XY Tempest Officer",
+    "Admin",
+    "Moderator"
+  ]
+}
