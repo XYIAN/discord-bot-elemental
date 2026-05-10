@@ -62,6 +62,12 @@
   "channelBlueprint": {
     "publicCategories": [
       {
+        "name": "arch-ai",
+        "channels": [
+          "arch-ai"
+        ]
+      },
+      {
         "name": "strategy",
         "channels": [
           "gameplay-general",
@@ -73,6 +79,13 @@
           "spirits-and-relics",
           "codes-and-events",
           "help-and-questions"
+        ]
+      },
+      {
+        "name": "ops",
+        "channels": [
+          "changelog",
+          "debug-log"
         ]
       }
     ],

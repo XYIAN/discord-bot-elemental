@@ -4,35 +4,41 @@ This is the starter channel taxonomy for the new server. It mirrors the proven a
 
 Main server branding is intentionally flexible. Private clan section is fixed to Tempest conventions.
 
+## Public AI Category
+
+- `#arch-ai` - Primary bot command and AI assistant channel (`!help`, `!rank`, `!leaderboard`, `!blueprint`)
+
 ## Public Strategy Category
 
-| Channel | Purpose |
-|---|---|
-| `#gameplay-general` | Broad gameplay discussion, patch effects, daily progression |
-| `#crafting-realm` | Crafting Gems routes, gear craft optimization |
-| `#mount-realm` | Mount progression and Soulvine farming |
-| `#trial-tower` | Floor push strategies, rank checkpoints, reward planning |
-| `#arena` | PvP meta discussion and rank climb strategy |
-| `#builds-and-refines` | Stat priorities, refine rolls, class-specific builds |
-| `#spirits-and-relics` | Spirit synergies, relic choices, vessel/socket decisions |
-| `#codes-and-events` | Active codes, event checklists, launch rewards |
-| `#help-and-questions` | New-player support and quick troubleshooting |
+- `#gameplay-general` - Broad gameplay discussion, patch effects, daily progression
+- `#crafting-realm` - Crafting Gems routes, gear craft optimization
+- `#mount-realm` - Mount progression and Soulvine farming
+- `#trial-tower` - Floor push strategies, rank checkpoints, reward planning
+- `#arena` - PvP meta discussion and rank climb strategy
+- `#builds-and-refines` - Stat priorities, refine rolls, class-specific builds
+- `#spirits-and-relics` - Spirit synergies, relic choices, vessel/socket decisions
+- `#codes-and-events` - Active codes, event checklists, launch rewards
+- `#help-and-questions` - New-player support and quick troubleshooting
+
+## Public Ops Category
+
+- `#changelog` - Release/update notes posted for the server
+- `#debug-log` - Bot operational logs and incident debugging context
 
 ## Private Tempest Clan Category
 
 Access model:
+
 - View/post: `XY Tempest Verified`, `XY Tempest Officer`, admins
 - Officer-only channels: `XY Tempest Officer`, admins
 
-| Channel | Access | Purpose |
-|---|---|---|
-| `#tempest-clan-chat` | verified + officer | Main private clan chat |
-| `#clan-quests` | verified + officer | Quest coordination and contribution tracking |
-| `#clan-events` | verified + officer | Event prep and participation planning |
-| `#clan-vault` | verified + officer | Clan vault priorities and requests |
-| `#treasure-trove` | verified + officer | Reward planning and routing |
-| `#clan-rank-promotion` | verified + officer | Internal clan rank promotion notes |
-| `#officer-planning` | officer only | Leadership planning and policy updates |
+- `#tempest-clan-chat` (verified + officer) - Main private clan chat
+- `#clan-quests` (verified + officer) - Quest coordination and contribution tracking
+- `#clan-events` (verified + officer) - Event prep and participation planning
+- `#clan-vault` (verified + officer) - Clan vault priorities and requests
+- `#treasure-trove` (verified + officer) - Reward planning and routing
+- `#clan-rank-promotion` (verified + officer) - Internal clan rank promotion notes
+- `#officer-planning` (officer only) - Leadership planning and policy updates
 
 ## Activity XP Scope
 

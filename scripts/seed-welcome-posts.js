@@ -10,6 +10,7 @@ const isDryRun = process.argv.includes('--dry-run');
 
 function channelMessageMap() {
     return {
+        'arch-ai': 'Arch AI command channel. Use `!help`, `!rank`, `!leaderboard`, and `!blueprint` here.',
         'gameplay-general': 'Welcome to gameplay-general. Share daily progression, route ideas, and practical strategy discussions.',
         'crafting-realm': 'Crafting Realm strategy channel: discuss Crafting Gem farming, efficiency routes, and gear crafting priorities.',
         'mount-realm': 'Mount Realm strategy channel: share Soulvine farming paths and mount upgrade sequencing.',
@@ -19,6 +20,8 @@ function channelMessageMap() {
         'spirits-and-relics': 'Spirits, relics, and vessel setup: synergy discussions and progression paths.',
         'codes-and-events': 'Active codes and event updates. Keep this channel focused on timely actionable info.',
         'help-and-questions': 'New here? Ask your questions and get setup help from the community.',
+        changelog: 'Release notes and update summaries are posted here.',
+        'debug-log': 'Operational debug stream for bot/runtime issues and noteworthy events.',
         'tempest-clan-chat': 'Private Tempest clan chat. Coordination and internal discussion only.',
         'clan-quests': 'Track and coordinate clan quest progress.',
         'clan-events': 'Plan clan event participation and assignments.',

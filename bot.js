@@ -10,7 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder } = require('discord.js');
 require('dotenv').config();
 require('dotenv').config({ path: path.join(__dirname, '.env.local'), override: false });
 
@@ -115,6 +115,134 @@ function buildProgressBar(points) {
     return `${'█'.repeat(filled)}${'░'.repeat(10 - filled)}`;
 }
 
+function buildSlashCommands() {
+    return [
+        new SlashCommandBuilder().setName('ping').setDescription('Check bot status and version'),
+        new SlashCommandBuilder().setName('help').setDescription('Show command list'),
+        new SlashCommandBuilder().setName('blueprint').setDescription('Show planned channel blueprint'),
+        new SlashCommandBuilder().setName('rank').setDescription('Show your activity rank and progress'),
+        new SlashCommandBuilder().setName('leaderboard').setDescription('Show activity leaderboard'),
+    ].map((c) => c.toJSON());
+}
+
+async function registerGuildSlashCommands() {
+    if (!process.env.DISCORD_TOKEN || !process.env.CLIENT_ID || !process.env.GUILD_ID) {
+        console.log('Skipping slash command registration: DISCORD_TOKEN/CLIENT_ID/GUILD_ID required.');
+        return;
+    }
+    try {
+        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+        await rest.put(
+            Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+            { body: buildSlashCommands() }
+        );
+        console.log('Registered guild slash commands: /ping /help /blueprint /rank /leaderboard');
+    } catch (error) {
+        console.error('Slash command registration failed:', error.message);
+    }
+}
+
+async function executeCommand({ cmd, argText, member, userId, username, reply }) {
+    switch (cmd) {
+        case 'ping':
+            return reply(`Pong! v${BOT_VERSION}`);
+        case 'help':
+        case 'menu':
+            return reply(
+                [
+                    '**Commands**',
+                    '`!ping` / `/ping` - status',
+                    '`!help` / `!menu` / `/help` - command list',
+                    '`!suggest <text>` - submit suggestion',
+                    '`!addfact <text>` - add fact (admin)',
+                    '`!rank` / `!level` / `/rank` - show your rank and progress',
+                    '`!leaderboard` / `!lb` / `/leaderboard` - top activity users',
+                    '`!blueprint` / `/blueprint` - show planned channel blueprint',
+                ].join('\n')
+            );
+        case 'suggest': {
+            if (!argText) return reply('Usage: `!suggest <text>`');
+            const list = loadJson(SUGGESTIONS_PATH, []);
+            list.push({
+                id: list.length + 1,
+                text: argText,
+                by: username,
+                userId,
+                at: new Date().toISOString(),
+                status: 'pending',
+            });
+            saveJson(SUGGESTIONS_PATH, list);
+            return reply('Suggestion received.');
+        }
+        case 'addfact': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            if (!argText) return reply('Usage: `!addfact <text>`');
+            const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
+            if (!Array.isArray(knowledge.custom_facts)) knowledge.custom_facts = [];
+            knowledge.custom_facts.push({
+                text: argText,
+                added_by: username,
+                added_at: new Date().toISOString().split('T')[0],
+            });
+            saveJson(KNOWLEDGE_PATH, knowledge);
+            return reply(`Fact added. Total custom facts: ${knowledge.custom_facts.length}`);
+        }
+        case 'rank':
+        case 'level': {
+            const map = loadJson(ACTIVITY_PATH, {});
+            const entry = map[userId] || { points: 0 };
+            const points = entry.points || 0;
+            const tier = getActivityTier(points);
+            const next = getNextActivityTier(points);
+            const bar = buildProgressBar(points);
+            const nextLine = next
+                ? `Next: **${next.name}** at **${next.threshold}** (${Math.max(next.threshold - points, 0)} to go)`
+                : 'You are at the highest configured rank tier.';
+            return reply(
+                [
+                    `**Rank:** ${tier.name}`,
+                    `**Points:** ${points}`,
+                    `**Progress:** ${bar}`,
+                    nextLine,
+                ].join('\n')
+            );
+        }
+        case 'leaderboard':
+        case 'lb': {
+            const map = loadJson(ACTIVITY_PATH, {});
+            const top = Object.values(map)
+                .sort((a, b) => (b.points || 0) - (a.points || 0))
+                .slice(0, 10);
+            if (!top.length) return reply('No activity data yet.');
+            const lines = top.map((u, i) => {
+                const tier = getActivityTier(u.points || 0);
+                return `${i + 1}. ${u.username} - ${u.points || 0} pts (${tier.name})`;
+            });
+            return reply(['**Activity Leaderboard**', ...lines].join('\n'));
+        }
+        case 'blueprint': {
+            const publicList = (CONFIG.channelBlueprint.publicCategories || [])
+                .map((cat) => [`**${cat.name}**`, ...(cat.channels || []).map((name) => `- #${name}`)].join('\n'))
+                .join('\n\n');
+            const clanList = CONFIG.channelBlueprint.privateClanCategory.channels.map((name) => `- #${name}`).join('\n');
+            return reply(
+                [
+                    '**Server Blueprint (Template)**',
+                    '',
+                    publicList,
+                    '',
+                    `**${CONFIG.channelBlueprint.privateClanCategory.name}**`,
+                    clanList,
+                    '',
+                    `Clan roles: **${CONFIG.clanRoleNames.verified}**, **${CONFIG.clanRoleNames.officer}**`,
+                ].join('\n')
+            );
+        }
+        default:
+            return null;
+    }
+}
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -131,6 +259,8 @@ client.once('ready', async () => {
     console.log(`App: ${APP_NAME}${APP_ID ? ` [${APP_ID}]` : ''}`);
     if (!process.env.CLIENT_ID) console.log('Warning: CLIENT_ID is missing; invite/build scripts may fail.');
     if (!process.env.GUILD_ID) console.log('Warning: GUILD_ID is missing; setup scripts cannot target a server.');
+    console.log('Note: Prefix commands (!ping, !help, etc.) require Message Content Intent enabled in Discord Developer Portal.');
+    await registerGuildSlashCommands();
 });
 
 client.on('messageCreate', async (message) => {
@@ -147,103 +277,39 @@ client.on('messageCreate', async (message) => {
     const cmd = (rawCmd || '').toLowerCase();
     const argText = rest.join(' ').trim();
 
-    switch (cmd) {
-        case 'ping':
-            return message.reply(`Pong! v${BOT_VERSION}`);
-        case 'help':
-        case 'menu':
-            return message.reply(
-                [
-                    '**Commands**',
-                    '`!ping` - status',
-                    '`!help` / `!menu` - command list',
-                    '`!suggest <text>` - submit suggestion',
-                    '`!addfact <text>` - add fact (admin)',
-                    '`!rank` / `!level` - show your rank and progress',
-                    '`!leaderboard` / `!lb` - top activity users',
-                    '`!blueprint` - show planned channel blueprint',
-                ].join('\n')
-            );
-        case 'suggest': {
-            if (!argText) return message.reply('Usage: `!suggest <text>`');
-            const list = loadJson(SUGGESTIONS_PATH, []);
-            list.push({
-                id: list.length + 1,
-                text: argText,
-                by: message.author.username,
-                userId: message.author.id,
-                at: new Date().toISOString(),
-                status: 'pending',
-            });
-            saveJson(SUGGESTIONS_PATH, list);
-            return message.reply('Suggestion received.');
+    return executeCommand({
+        cmd,
+        argText,
+        member: message.member,
+        userId: message.author.id,
+        username: message.author.username,
+        reply: (content) => message.reply(content),
+    });
+});
+
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+
+    const cmd = interaction.commandName.toLowerCase();
+    const argText = interaction.options.getString('text') || '';
+    const userId = interaction.user.id;
+    const username = interaction.user.username;
+
+    const reply = async (content) => {
+        if (interaction.replied || interaction.deferred) {
+            return interaction.followUp({ content });
         }
-        case 'addfact': {
-            if (!isAdmin(message.member)) return message.reply('Admin only command.');
-            if (!argText) return message.reply('Usage: `!addfact <text>`');
-            const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
-            if (!Array.isArray(knowledge.custom_facts)) knowledge.custom_facts = [];
-            knowledge.custom_facts.push({
-                text: argText,
-                added_by: message.author.username,
-                added_at: new Date().toISOString().split('T')[0],
-            });
-            saveJson(KNOWLEDGE_PATH, knowledge);
-            return message.reply(`Fact added. Total custom facts: ${knowledge.custom_facts.length}`);
-        }
-        case 'rank':
-        case 'level': {
-            const map = loadJson(ACTIVITY_PATH, {});
-            const entry = map[message.author.id] || { points: 0 };
-            const points = entry.points || 0;
-            const tier = getActivityTier(points);
-            const next = getNextActivityTier(points);
-            const bar = buildProgressBar(points);
-            const nextLine = next
-                ? `Next: **${next.name}** at **${next.threshold}** (${Math.max(next.threshold - points, 0)} to go)`
-                : 'You are at the highest configured rank tier.';
-            return message.reply(
-                [
-                    `**Rank:** ${tier.name}`,
-                    `**Points:** ${points}`,
-                    `**Progress:** ${bar}`,
-                    nextLine,
-                ].join('\n')
-            );
-        }
-        case 'leaderboard':
-        case 'lb': {
-            const map = loadJson(ACTIVITY_PATH, {});
-            const top = Object.values(map)
-                .sort((a, b) => (b.points || 0) - (a.points || 0))
-                .slice(0, 10);
-            if (!top.length) return message.reply('No activity data yet.');
-            const lines = top.map((u, i) => {
-                const tier = getActivityTier(u.points || 0);
-                return `${i + 1}. ${u.username} - ${u.points || 0} pts (${tier.name})`;
-            });
-            return message.reply(['**Activity Leaderboard**', ...lines].join('\n'));
-        }
-        case 'blueprint': {
-            const publicList = CONFIG.channelBlueprint.publicCategories[0].channels.map((name) => `- #${name}`).join('\n');
-            const clanList = CONFIG.channelBlueprint.privateClanCategory.channels.map((name) => `- #${name}`).join('\n');
-            return message.reply(
-                [
-                    '**Server Blueprint (Template)**',
-                    '',
-                    '**Public Strategy Channels**',
-                    publicList,
-                    '',
-                    '**Private Tempest Clan Channels**',
-                    clanList,
-                    '',
-                    `Clan roles: **${CONFIG.clanRoleNames.verified}**, **${CONFIG.clanRoleNames.officer}**`,
-                ].join('\n')
-            );
-        }
-        default:
-            return null;
-    }
+        return interaction.reply({ content });
+    };
+
+    await executeCommand({
+        cmd,
+        argText,
+        member: interaction.member,
+        userId,
+        username,
+        reply,
+    });
 });
 
 process.on('unhandledRejection', (e) => console.error('Unhandled rejection:', e));

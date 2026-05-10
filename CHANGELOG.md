@@ -3,9 +3,22 @@
 All notable changes to this project are documented here.
 
 Versioning:
+
 - Major = architecture resets/breaking
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
+
+## [0.3.1] - 2026-05-10
+
+### Command reliability + ops channel parity
+
+- Added guild slash commands (`/ping`, `/help`, `/blueprint`, `/rank`, `/leaderboard`) so core smoke-test commands work even when Message Content Intent is disabled for prefix commands.
+- Refactored command execution into a shared handler used by both message commands and slash interactions.
+- Added startup guidance log clarifying that `!` prefix commands require Message Content Intent in Discord Developer Portal.
+- Expanded channel blueprint to include:
+  - `arch-ai` category with `#arch-ai`
+  - `ops` category with `#changelog` and `#debug-log`
+- Updated welcome seeding messages for `#arch-ai`, `#changelog`, and `#debug-log`.
 
 ## [0.3.0] - 2026-05-10
 
