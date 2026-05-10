@@ -28,6 +28,8 @@ Game-specific note:
 | `APP_ID` | App metadata reference (non-secret) |
 | `APP_PUBLIC_KEY` | App metadata reference (non-secret) |
 | `DATA_VOLUME_PATH` | If set, bot reads/writes data files from this path (Railway persistent volume). On first boot, repo `data/*.json` is copied into the volume; existing files are never overwritten. |
+| `ENABLE_MESSAGE_CONTENT_INTENT` | Set `true` only if Message Content Intent is enabled in Discord Developer Portal. Default is `false` to avoid 4014 crash loops. |
+| `ENABLE_GUILD_MEMBERS_INTENT` | Set `true` only if Server Members Intent is enabled in Discord Developer Portal. Default is `false` to avoid 4014 crash loops. |
 
 ## App metadata (current)
 
@@ -92,6 +94,14 @@ Auto-granted when activity points cross the threshold. Admins always bypass thes
 - Config location: `config/bootstrap-config.json` -> `dailyResetReminder`.
 - Default post target priority: `#codes-and-events`, then `#gameplay-general`, then `#debug-log`.
 - Reminder theme includes: complete daily class + register for clan raid.
+
+## Ops channel hardening
+
+- Changelog + debug posts resolve by **channel ID first**, then by name.
+- Config location: `config/bootstrap-config.json` -> `opsChannels.changelogIds` / `opsChannels.debugIds`.
+- Current production IDs:
+  - `changelog`: `1503064878045204721`
+  - `debug-log`: `1503064878410371254`
 
 ## Blueprint references
 

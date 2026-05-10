@@ -851,15 +851,24 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
     }
 }
 
+const MESSAGE_CONTENT_INTENT_ENABLED = String(process.env.ENABLE_MESSAGE_CONTENT_INTENT || '').toLowerCase() === 'true';
+const GUILD_MEMBERS_INTENT_ENABLED = String(process.env.ENABLE_GUILD_MEMBERS_INTENT || '').toLowerCase() === 'true';
+
+const clientIntents = [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.DirectMessages,
+];
+if (GUILD_MEMBERS_INTENT_ENABLED) {
+    clientIntents.push(GatewayIntentBits.GuildMembers);
+}
+if (MESSAGE_CONTENT_INTENT_ENABLED) {
+    clientIntents.push(GatewayIntentBits.MessageContent);
+}
+
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessageReactions,
-        GatewayIntentBits.DirectMessages,
-    ],
+    intents: clientIntents,
     partials: [Partials.Channel, Partials.Message, Partials.Reaction, Partials.User],
 });
 
@@ -1568,7 +1577,16 @@ client.once('ready', async () => {
     console.log(`App: ${APP_NAME}${APP_ID ? ` [${APP_ID}]` : ''}`);
     if (!process.env.CLIENT_ID) console.log('Warning: CLIENT_ID is missing; invite/build scripts may fail.');
     if (!process.env.GUILD_ID) console.log('Warning: GUILD_ID is missing; setup scripts cannot target a server.');
-    console.log('Note: Prefix commands (!ping, !help, etc.) require Message Content Intent enabled in Discord Developer Portal.');
+    if (MESSAGE_CONTENT_INTENT_ENABLED) {
+        console.log('Message Content Intent is enabled. Prefix commands and non-mention AI messages are active.');
+    } else {
+        console.log('Message Content Intent is disabled (ENABLE_MESSAGE_CONTENT_INTENT != true). Slash commands remain active; prefix/free-text listeners are limited.');
+    }
+    if (GUILD_MEMBERS_INTENT_ENABLED) {
+        console.log('Guild Members Intent is enabled. Auto-role on join and member-fetch dependent features are active.');
+    } else {
+        console.log('Guild Members Intent is disabled (ENABLE_GUILD_MEMBERS_INTENT != true). Join-role automation may be limited.');
+    }
     await registerGuildSlashCommands();
 
     const changelogResult = await postCurrentChangelog();

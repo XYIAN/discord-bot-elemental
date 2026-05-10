@@ -8,6 +8,23 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [1.0.4] - 2026-05-10
+
+### Intent safety + role styling fixes
+
+- Added intent safety flags:
+  - `ENABLE_MESSAGE_CONTENT_INTENT` (default `false`)
+  - `ENABLE_GUILD_MEMBERS_INTENT` (default `false`)
+- Bot now starts without privileged intents by default to avoid Discord 4014 crash loops when intents are not enabled in Developer Portal.
+- Updated startup logs to clearly show whether privileged intents are enabled or disabled.
+- Enhanced `scripts/create-roles.js` to upsert (create + update) role style/permissions, not just create missing roles.
+- Added explicit styled roles:
+  - `Admin` (administrator permissions, red, hoisted)
+  - `Moderator` (moderation permissions, yellow, hoisted)
+  - activity ladder color progression with highest tier `Tempest Left Marshal` set to bright cyan (`#00FFFF`)
+  - forum tiers and reaction-role color defaults
+- Added docs + `.env.example` entries for privileged intent flags and ops channel ID hardening.
+
 ## [1.0.3] - 2026-05-10
 
 ### Ops channel targeting hardening
