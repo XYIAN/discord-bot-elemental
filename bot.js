@@ -426,12 +426,25 @@ process.on('uncaughtException', (e) => console.error('Uncaught exception:', e));
 ensureDataFiles();
 
 const app = express();
-app.get('/health', (_req, res) => res.status(200).json({ ok: true, version: BOT_VERSION }));
+app.get('/health', (_req, res) =>
+    res.status(200).json({
+        ok: true,
+        version: BOT_VERSION,
+        discord: client.isReady() ? 'connected' : 'disconnected',
+    })
+);
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Health server listening on ${port}`));
 
-if (!process.env.DISCORD_TOKEN) {
-    console.error('Missing DISCORD_TOKEN. Bot login skipped.');
-} else {
-    client.login(process.env.DISCORD_TOKEN);
+function loginWithRetry() {
+    if (!process.env.DISCORD_TOKEN) {
+        console.error('Missing DISCORD_TOKEN. Refusing to run disconnected.');
+        process.exit(1);
+    }
+    client.login(process.env.DISCORD_TOKEN).catch((error) => {
+        console.error(`Discord login failed: ${error.message}. Retrying in 5 seconds...`);
+        setTimeout(loginWithRetry, 5000);
+    });
 }
+
+loginWithRetry();

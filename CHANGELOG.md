@@ -8,6 +8,14 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [0.3.5] - 2026-05-10
+
+### Discord connection hardening
+
+- Mirrored core runtime reliability behavior from the working bot by adding Discord login retry loop in `bot.js`.
+- Changed startup behavior to fail loudly when `DISCORD_TOKEN` is missing instead of silently running disconnected.
+- Expanded `/health` payload with Discord connection state so Railway "healthy but disconnected" cases are visible.
+
 ## [0.3.4] - 2026-05-10
 
 ### Themed welcome + recruiting onboarding messages
