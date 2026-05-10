@@ -39,3 +39,13 @@ This repo is the baseline for launching a game-specific Discord bot for a new ga
 - Add startup release-note posting to changelog channel
 - Add backup strategy for data files
 - Define incident and rollback runbook
+
+## Phase 6 - AI Q&A (shipped in v0.7.0)
+
+- Tempest Commander OpenAI Q&A in `#elemental-ai`
+- Per-user memory + `!forget`
+- Vision answers gated to trusted roles
+- Cost guardrails (text + vision cooldowns, daily token budget)
+- Owner kill switch `!ai on/off`, `!ai status`
+- Thumbs feedback persisted to `data/feedback.json`
+- Persona finalized in `docs/PERSONA.md`

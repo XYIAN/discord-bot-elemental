@@ -99,6 +99,35 @@
       "gameplay-general"
     ]
   },
+  "ai": {
+    "enabled": true,
+    "channelNames": [
+      "elemental-ai"
+    ],
+    "model": "gpt-4o-mini",
+    "visionModel": "gpt-4o-mini",
+    "maxTokens": 600,
+    "temperature": 0.5,
+    "memoryTurns": 6,
+    "textCooldownMs": 15000,
+    "visionCooldownMs": 60000,
+    "dailyTokenBudget": 200000,
+    "vision": {
+      "enabled": true,
+      "maxImages": 2,
+      "detail": "low",
+      "trustedRoleNames": [
+        "XY Tempest Officer",
+        "Admin",
+        "Moderator"
+      ]
+    },
+    "feedback": {
+      "enabled": true,
+      "thumbsUp": "👍",
+      "thumbsDown": "👎"
+    }
+  },
   "channelBlueprint": {
     "publicCategories": [
       {

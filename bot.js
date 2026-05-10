@@ -149,6 +149,36 @@ CONFIG.clanRecruit = {
         ? CONFIG.clanRecruit.preferredChannelNames
         : ['tempest-recruit', 'gameplay-general'],
 };
+CONFIG.ai = {
+    enabled: CONFIG?.ai?.enabled !== false,
+    channelNames: Array.isArray(CONFIG?.ai?.channelNames) && CONFIG.ai.channelNames.length
+        ? CONFIG.ai.channelNames
+        : ['elemental-ai'],
+    model: CONFIG?.ai?.model || 'gpt-4o-mini',
+    visionModel: CONFIG?.ai?.visionModel || 'gpt-4o-mini',
+    maxTokens: Number.isInteger(CONFIG?.ai?.maxTokens) && CONFIG.ai.maxTokens > 0 ? CONFIG.ai.maxTokens : 600,
+    temperature: typeof CONFIG?.ai?.temperature === 'number' ? CONFIG.ai.temperature : 0.5,
+    memoryTurns: Number.isInteger(CONFIG?.ai?.memoryTurns) && CONFIG.ai.memoryTurns > 0 ? CONFIG.ai.memoryTurns : 6,
+    textCooldownMs: Number.isInteger(CONFIG?.ai?.textCooldownMs) ? CONFIG.ai.textCooldownMs : 15_000,
+    visionCooldownMs: Number.isInteger(CONFIG?.ai?.visionCooldownMs) ? CONFIG.ai.visionCooldownMs : 60_000,
+    dailyTokenBudget: Number.isInteger(CONFIG?.ai?.dailyTokenBudget) ? CONFIG.ai.dailyTokenBudget : 200_000,
+    vision: {
+        enabled: CONFIG?.ai?.vision?.enabled !== false,
+        maxImages: Number.isInteger(CONFIG?.ai?.vision?.maxImages) ? CONFIG.ai.vision.maxImages : 2,
+        detail: ['low', 'high', 'auto'].includes(CONFIG?.ai?.vision?.detail) ? CONFIG.ai.vision.detail : 'low',
+        trustedRoleNames: Array.isArray(CONFIG?.ai?.vision?.trustedRoleNames) && CONFIG.ai.vision.trustedRoleNames.length
+            ? CONFIG.ai.vision.trustedRoleNames
+            : ['XY Tempest Officer', 'Admin', 'Moderator'],
+    },
+    feedback: {
+        enabled: CONFIG?.ai?.feedback?.enabled !== false,
+        thumbsUp: CONFIG?.ai?.feedback?.thumbsUp || '👍',
+        thumbsDown: CONFIG?.ai?.feedback?.thumbsDown || '👎',
+    },
+    persona: typeof CONFIG?.ai?.persona === 'string'
+        ? CONFIG.ai.persona
+        : null,
+};
 const APP_NAME = process.env.APP_NAME || CONFIG?.appMetadata?.name || 'Tempest Commander';
 const APP_ID = process.env.APP_ID || CONFIG?.appMetadata?.applicationId || process.env.CLIENT_ID || null;
 
@@ -352,6 +382,12 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
                     '`!approve <id>` / `!reject <id>` - decide a suggestion',
                     '`!grant <id>` - promote suggestion to a fact',
                     '',
+                    '**AI (in #elemental-ai)**',
+                    'Just ask a question - I will reply when AI is configured.',
+                    '`!ai status` - show AI runtime + budget',
+                    '`!ai on` / `!ai off` - owner kill switch',
+                    '`!forget` - clear your AI conversation memory',
+                    '',
                     '**Admin (ops)**',
                     '`!post-changelog [x.y.z]` - re-post changelog to #changelog',
                     '`!debug-ping` - smoke-test #debug-log post',
@@ -395,6 +431,31 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             if (!isAdmin(member)) return reply('Admin only command.');
             const result = await sendReactionRoleOptInMessage();
             return reply(result.posted ? `Setup reaction message: ${result.status}` : `Setup reaction failed: ${result.status}`);
+        }
+        case 'ai': {
+            const sub = (argText || '').trim().toLowerCase();
+            if (sub === 'status') {
+                return reply(
+                    [
+                        `**AI status**`,
+                        `runtime: ${aiRuntimeEnabled ? 'on' : 'off'}`,
+                        `client: ${openai ? 'initialized' : 'not initialized (set OPENAI_API_KEY)'}`,
+                        `model: ${CONFIG.ai.model}`,
+                        `tokens spent today: ${aiTokenSpent} / ${CONFIG.ai.dailyTokenBudget}`,
+                        `vision: ${CONFIG.ai.vision.enabled ? 'enabled' : 'disabled'} (trusted: ${CONFIG.ai.vision.trustedRoleNames.join(', ')})`,
+                    ].join('\n')
+                );
+            }
+            if (sub === 'on' || sub === 'off') {
+                if (!isOwner(userId)) return reply('Owner only command.');
+                aiRuntimeEnabled = sub === 'on';
+                return reply(`AI runtime is now **${sub}**.`);
+            }
+            return reply('Usage: `!ai status` | `!ai on` | `!ai off` (on/off owner only)');
+        }
+        case 'forget': {
+            clearUserMemory(userId);
+            return reply('Cleared your AI conversation memory.');
         }
         case 'suggest': {
             if (!argText) return reply('Usage: `!suggest <text>`');
@@ -986,6 +1047,304 @@ async function handleNewMember(member) {
     }
 }
 
+// ── AI (Tempest Commander Q&A in #elemental-ai) ────────────────────────
+
+let openai = null;
+let aiRuntimeEnabled = CONFIG.ai.enabled !== false;
+const aiUserMemory = new Map();
+const aiUserLastTextAt = new Map();
+const aiUserLastVisionAt = new Map();
+const aiAnswerMessageIds = new Set();
+const aiQuestionByMessageId = new Map();
+let aiTokenSpent = 0;
+let aiTokenSpentDateKey = formatDateKey(getTimePartsInZone(new Date(), CONFIG.dailyResetReminder.timezone));
+
+const DEFAULT_AI_PERSONA = [
+    'You are Tempest Commander, the strategic AI advisor for the Tempest clan in Legend of Elements.',
+    '',
+    'Voice:',
+    '- Tactical, terse, clan-loyal.',
+    '- Lead with the answer in 1-2 sentences. Use bullets for steps.',
+    '- If you lack data, say "uncertain" and ask for what you need.',
+    '- Never invent numbers, mechanics, or names you do not have.',
+    '- Always say "clan", never "guild".',
+    '- Avoid emojis, hype, and filler.',
+    '',
+    'Domain knowledge spans: classes (Wind Swordsman, Thunder Sorcerer, Fire Warrior), realms (Crafting Realm, Mount Realm), Trial Tower, Arena, builds, spirits, relics, mounts, gear, clan systems (Clan Hall, Clan Quests, Clan Events, Clan Vault, Treasure Trove), and rank progression.',
+    '',
+    'Boundaries:',
+    '- Decline non-game questions politely and redirect to the right channel.',
+    '- Refuse insults or harassment requests; redirect to community rules.',
+].join('\n');
+
+function initOpenAI() {
+    if (!process.env.OPENAI_API_KEY) {
+        console.log('OpenAI: OPENAI_API_KEY not set; AI Q&A disabled.');
+        return;
+    }
+    try {
+        const OpenAIPkg = require('openai');
+        const OpenAI = OpenAIPkg.OpenAI || OpenAIPkg.default || OpenAIPkg;
+        openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        console.log(`OpenAI initialized (model=${CONFIG.ai.model}, vision=${CONFIG.ai.vision.enabled}).`);
+    } catch (error) {
+        console.error('OpenAI init failed:', error.message);
+    }
+}
+
+function isAIChannel(channel) {
+    if (!channel) return false;
+    if (typeof channel.name !== 'string') return false;
+    return CONFIG.ai.channelNames.includes(channel.name);
+}
+
+function loadPersonaPrompt() {
+    if (CONFIG.ai.persona) return CONFIG.ai.persona;
+    try {
+        const file = path.join(__dirname, 'docs', 'PERSONA.md');
+        if (fs.existsSync(file)) {
+            const md = fs.readFileSync(file, 'utf8');
+            const stripped = md
+                .split('\n')
+                .filter((line, idx) => !(idx === 0 && line.startsWith('# ')))
+                .join('\n')
+                .trim();
+            if (stripped.length > 0) return stripped;
+        }
+    } catch {}
+    return DEFAULT_AI_PERSONA;
+}
+
+function summarizeKnowledgeForPrompt(maxChars = 2400) {
+    const knowledge = loadJson(KNOWLEDGE_PATH, {});
+    const parts = [];
+    const push = (heading, value) => {
+        if (value === undefined || value === null) return;
+        if (typeof value === 'string') {
+            parts.push(`### ${heading}\n${value}`);
+            return;
+        }
+        if (Array.isArray(value)) {
+            const flat = value
+                .map((v) => (typeof v === 'string' ? v : JSON.stringify(v)))
+                .join('; ');
+            parts.push(`### ${heading}\n${flat}`);
+            return;
+        }
+        if (typeof value === 'object') {
+            const items = Object.entries(value)
+                .map(([k, v]) => `${k}: ${typeof v === 'string' ? v : Array.isArray(v) ? v.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join('; ') : JSON.stringify(v)}`)
+                .join('\n');
+            parts.push(`### ${heading}\n${items}`);
+        }
+    };
+    for (const [k, v] of Object.entries(knowledge)) {
+        if (k === 'custom_facts') continue;
+        push(k, v);
+    }
+    const customFacts = Array.isArray(knowledge.custom_facts) ? knowledge.custom_facts : [];
+    if (customFacts.length) {
+        const factLines = customFacts
+            .slice(-25)
+            .map((f) => `- (${f.id}) ${f.text}`)
+            .join('\n');
+        parts.push(`### custom_facts (latest)\n${factLines}`);
+    }
+    let combined = parts.join('\n\n');
+    if (combined.length > maxChars) combined = combined.slice(0, maxChars - 3) + '...';
+    return combined;
+}
+
+function getMemory(userId) {
+    return aiUserMemory.get(userId) || [];
+}
+
+function pushMemory(userId, role, content) {
+    const list = aiUserMemory.get(userId) || [];
+    list.push({ role, content });
+    const limit = CONFIG.ai.memoryTurns * 2;
+    while (list.length > limit) list.shift();
+    aiUserMemory.set(userId, list);
+}
+
+function clearUserMemory(userId) {
+    aiUserMemory.delete(userId);
+}
+
+function checkDailyTokenBudget() {
+    const todayKey = formatDateKey(getTimePartsInZone(new Date(), CONFIG.dailyResetReminder.timezone));
+    if (todayKey !== aiTokenSpentDateKey) {
+        aiTokenSpent = 0;
+        aiTokenSpentDateKey = todayKey;
+    }
+    return aiTokenSpent < CONFIG.ai.dailyTokenBudget;
+}
+
+function recordTokenSpend(usage) {
+    if (!usage) return;
+    const total = (usage.total_tokens != null) ? usage.total_tokens : ((usage.prompt_tokens || 0) + (usage.completion_tokens || 0));
+    aiTokenSpent += total;
+}
+
+function memberHasTrustedVisionRole(member) {
+    if (!member?.roles?.cache) return false;
+    return member.roles.cache.some((r) => CONFIG.ai.vision.trustedRoleNames.includes(r.name));
+}
+
+function isOwner(userId) {
+    return process.env.OWNER_ID && process.env.OWNER_ID === userId;
+}
+
+async function reactWithFeedbackEmojis(message) {
+    if (!CONFIG.ai.feedback.enabled) return;
+    try {
+        await message.react(CONFIG.ai.feedback.thumbsUp);
+        await message.react(CONFIG.ai.feedback.thumbsDown);
+    } catch (error) {
+        console.error('Could not add feedback reactions:', error.message);
+    }
+}
+
+async function callOpenAIChat(messages, isVision) {
+    if (!openai) throw new Error('OpenAI not initialized.');
+    const model = isVision ? CONFIG.ai.visionModel : CONFIG.ai.model;
+    const response = await openai.chat.completions.create({
+        model,
+        messages,
+        max_tokens: CONFIG.ai.maxTokens,
+        temperature: CONFIG.ai.temperature,
+    });
+    recordTokenSpend(response.usage);
+    return response.choices?.[0]?.message?.content?.trim() || '';
+}
+
+async function respondWithAI(message) {
+    if (!aiRuntimeEnabled) return;
+    if (!openai) return;
+    if (!checkDailyTokenBudget()) {
+        await message.reply('Daily AI token budget reached. Resets at midnight Pacific.').catch(() => null);
+        return;
+    }
+    const userId = message.author.id;
+    const now = Date.now();
+    const lastText = aiUserLastTextAt.get(userId) || 0;
+    if (now - lastText < CONFIG.ai.textCooldownMs) {
+        const wait = Math.ceil((CONFIG.ai.textCooldownMs - (now - lastText)) / 1000);
+        await message.reply(`Cooldown: ${wait}s before your next AI question.`).catch(() => null);
+        return;
+    }
+
+    const imageAttachments = [...(message.attachments?.values() || [])].filter((a) => typeof a.contentType === 'string' && a.contentType.startsWith('image/'));
+    const wantsVision = imageAttachments.length > 0;
+    let useVision = false;
+    if (wantsVision) {
+        if (!CONFIG.ai.vision.enabled) {
+            await message.reply('Vision answers are disabled. I will read your text only.').catch(() => null);
+        } else if (!memberHasTrustedVisionRole(message.member)) {
+            await message.reply('Image questions are limited to officers and admins. I will read your text only.').catch(() => null);
+        } else {
+            const lastVision = aiUserLastVisionAt.get(userId) || 0;
+            if (now - lastVision < CONFIG.ai.visionCooldownMs) {
+                const wait = Math.ceil((CONFIG.ai.visionCooldownMs - (now - lastVision)) / 1000);
+                await message.reply(`Vision cooldown: ${wait}s before your next image question.`).catch(() => null);
+                return;
+            }
+            useVision = true;
+        }
+    }
+
+    aiUserLastTextAt.set(userId, now);
+    if (useVision) aiUserLastVisionAt.set(userId, now);
+
+    const persona = loadPersonaPrompt();
+    const knowledge = summarizeKnowledgeForPrompt();
+    const systemContent = [
+        persona,
+        '',
+        'Reference knowledge (do not invent beyond it):',
+        knowledge,
+    ].join('\n');
+
+    const memory = getMemory(userId);
+    const userText = (message.content || '').trim() || '(no text)';
+    const userMessage = useVision
+        ? {
+            role: 'user',
+            content: [
+                { type: 'text', text: userText },
+                ...imageAttachments.slice(0, CONFIG.ai.vision.maxImages).map((a) => ({
+                    type: 'image_url',
+                    image_url: { url: a.url, detail: CONFIG.ai.vision.detail },
+                })),
+            ],
+        }
+        : { role: 'user', content: userText };
+
+    const messages = [
+        { role: 'system', content: systemContent },
+        ...memory,
+        userMessage,
+    ];
+
+    try {
+        await message.channel.sendTyping();
+        const answer = await callOpenAIChat(messages, useVision);
+        if (!answer) {
+            await message.reply('No response generated. Try rephrasing.').catch(() => null);
+            return;
+        }
+        const safe = answer.length > 1900 ? answer.slice(0, 1900) + '\n...' : answer;
+        const sent = await message.reply(safe);
+        pushMemory(userId, 'user', userText);
+        pushMemory(userId, 'assistant', answer);
+        aiAnswerMessageIds.add(sent.id);
+        aiQuestionByMessageId.set(sent.id, { userId, question: userText, answer });
+        await reactWithFeedbackEmojis(sent);
+    } catch (error) {
+        console.error('AI response failed:', error.message);
+        await sendDebug({ content: `🚨 AI error in #${message.channel?.name || 'unknown'}: ${error.message}` });
+        await message.reply(`AI error: ${error.message}`).catch(() => null);
+    }
+}
+
+function recordFeedback({ messageId, userId, username, emoji, value }) {
+    const list = loadJson(FEEDBACK_PATH, []);
+    const ctx = aiQuestionByMessageId.get(messageId) || {};
+    list.push({
+        id: list.length + 1,
+        messageId,
+        userId,
+        username,
+        emoji,
+        value,
+        question: ctx.question || null,
+        answer: ctx.answer ? ctx.answer.slice(0, 500) : null,
+        at: new Date().toISOString(),
+    });
+    saveJson(FEEDBACK_PATH, list);
+}
+
+async function handleAIThumbsReaction(reaction, user) {
+    if (user.bot) return;
+    if (!CONFIG.ai.feedback.enabled) return;
+    try {
+        if (reaction.partial) await reaction.fetch().catch(() => null);
+        const messageId = reaction.message.id;
+        if (!aiAnswerMessageIds.has(messageId)) return;
+        const emoji = reaction.emoji?.name;
+        if (emoji !== CONFIG.ai.feedback.thumbsUp && emoji !== CONFIG.ai.feedback.thumbsDown) return;
+        recordFeedback({
+            messageId,
+            userId: user.id,
+            username: user.username,
+            emoji,
+            value: emoji === CONFIG.ai.feedback.thumbsUp ? 1 : -1,
+        });
+    } catch (error) {
+        console.error('handleAIThumbsReaction failed:', error.message);
+    }
+}
+
 async function handleReactionRoleAdd(reaction, user) {
     if (user.bot) return;
     if (!CONFIG.reactionRole.enabled) return;
@@ -1055,10 +1414,14 @@ client.once('ready', async () => {
 
     startDailyResetScheduler();
     startClanRecruitScheduler();
+    initOpenAI();
 });
 
 client.on('guildMemberAdd', (member) => handleNewMember(member));
-client.on('messageReactionAdd', (reaction, user) => handleReactionRoleAdd(reaction, user));
+client.on('messageReactionAdd', async (reaction, user) => {
+    await handleReactionRoleAdd(reaction, user);
+    await handleAIThumbsReaction(reaction, user);
+});
 client.on('messageReactionRemove', (reaction, user) => handleReactionRoleRemove(reaction, user));
 
 client.on('messageCreate', async (message) => {
@@ -1070,7 +1433,12 @@ client.on('messageCreate', async (message) => {
         awardActivityPoint(message.author.id, message.author.username);
     }
 
-    if (!isCommand) return;
+    if (!isCommand) {
+        if (message.guild && isAIChannel(message.channel)) {
+            await respondWithAI(message);
+        }
+        return;
+    }
     const [rawCmd, ...rest] = message.content.slice(1).trim().split(' ');
     const cmd = (rawCmd || '').toLowerCase();
     const argText = rest.join(' ').trim();

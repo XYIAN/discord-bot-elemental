@@ -8,6 +8,21 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [0.7.0] - 2026-05-10
+
+### Full AI parity for #elemental-ai
+
+- Added Tempest Commander OpenAI Q&A in `#elemental-ai`. Lazy-init only when `OPENAI_API_KEY` is set.
+- Persona loaded from `docs/PERSONA.md` (Tempest Commander voice: tactical, terse, clan-loyal, Legend of Elements grounded). Falls back to in-code default.
+- Per-user rolling memory window (default 6 turns each side); `!forget` clears it.
+- Knowledge base summarized into the system prompt so answers stay grounded in `data/knowledge.json`.
+- Vision (image attachments) supported with trusted-role gating: only `XY Tempest Officer`, `Admin`, `Moderator` (configurable) can use vision; non-trusted users get a polite text-only fallback.
+- Cost / abuse guardrails: per-user text cooldown, separate vision cooldown, configurable daily token budget that resets at the daily reset timezone (in-memory; resets on redeploy).
+- Owner kill switch: `!ai on` / `!ai off` (gated by `OWNER_ID`); `!ai status` shows runtime, model, token budget.
+- Thumbs-up/thumbs-down feedback reactions auto-added to bot answers; user reactions logged to `data/feedback.json` with question/answer context.
+- Added `CONFIG.ai` block in `config/bootstrap-config.json` and finalized `docs/PERSONA.md`.
+- Updated `!help` with new AI section.
+
 ## [0.6.0] - 2026-05-10
 
 ### Knowledge moderation parity
