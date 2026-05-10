@@ -70,6 +70,14 @@
       "debug-log"
     ]
   },
+  "opsChannels": {
+    "changelog": [
+      "changelog"
+    ],
+    "debug": [
+      "debug-log"
+    ]
+  },
   "channelBlueprint": {
     "publicCategories": [
       {

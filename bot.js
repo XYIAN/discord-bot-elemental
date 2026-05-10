@@ -10,7 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 require('dotenv').config();
 require('dotenv').config({ path: path.join(__dirname, '.env.local'), override: false });
 
@@ -18,13 +18,79 @@ function parseChangelog() {
     try {
         const md = fs.readFileSync(path.join(__dirname, 'CHANGELOG.md'), 'utf8');
         const versionMatch = md.match(/^## \[(\d+\.\d+\.\d+)\]/m);
-        return { version: versionMatch ? versionMatch[1] : '0.0.0' };
-    } catch {
-        return { version: '0.0.0' };
+        const version = versionMatch ? versionMatch[1] : '0.0.0';
+
+        const firstEntry = md.indexOf('## [');
+        const secondEntry = md.indexOf('## [', firstEntry + 1);
+        const section = secondEntry > -1 ? md.slice(firstEntry, secondEntry) : md.slice(firstEntry);
+        const lines = section
+            .split('\n')
+            .filter((l) => /^- /.test(l.trim()))
+            .map((l) => l.trim().replace(/^- /, ''));
+        return { version, lines };
+    } catch (error) {
+        console.error('Could not parse CHANGELOG.md:', error.message);
+        return { version: '0.0.0', lines: [] };
     }
 }
 
-const { version: BOT_VERSION } = parseChangelog();
+function getChangelogLinesForVersion(targetVersion) {
+    try {
+        const md = fs.readFileSync(path.join(__dirname, 'CHANGELOG.md'), 'utf8');
+        const startMarker = `## [${targetVersion}]`;
+        const startIdx = md.indexOf(startMarker);
+        if (startIdx === -1) return null;
+        const afterStart = md.slice(startIdx);
+        const nextEntry = afterStart.indexOf('\n## [');
+        const section = nextEntry > -1 ? afterStart.slice(0, nextEntry) : afterStart;
+        return section
+            .split('\n')
+            .filter((l) => /^- /.test(l.trim()))
+            .map((l) => l.trim().replace(/^- /, ''));
+    } catch {
+        return null;
+    }
+}
+
+function buildChangelogEmbeds(version, lines) {
+    const HARD_LIMIT = 3900;
+    const bullets = (lines || []).map((l) => `• ${l}`);
+    const chunks = [];
+    let current = '';
+    for (const b of bullets) {
+        if (current && current.length + b.length + 1 > HARD_LIMIT) {
+            chunks.push(current);
+            current = '';
+        }
+        const safeBullet = b.length > HARD_LIMIT ? b.slice(0, HARD_LIMIT - 3) + '...' : b;
+        current += (current ? '\n' : '') + safeBullet;
+    }
+    if (current) chunks.push(current);
+    if (chunks.length === 0) chunks.push('• (no entries)');
+
+    return chunks.map((desc, idx) => {
+        const e = new EmbedBuilder().setDescription(desc).setColor(0x5865f2);
+        if (idx === 0) e.setTitle(`📦 ${APP_NAME} v${version}`);
+        const isLast = idx === chunks.length - 1;
+        const footer = chunks.length > 1
+            ? `${APP_NAME} — Changelog (part ${idx + 1}/${chunks.length})`
+            : `${APP_NAME} — Changelog`;
+        e.setFooter({ text: footer });
+        if (isLast) e.setTimestamp();
+        return e;
+    });
+}
+
+async function postChangelogToChannel(channel, version, lines) {
+    const embeds = buildChangelogEmbeds(version, lines);
+    const MAX_PER_MSG = 10;
+    for (let i = 0; i < embeds.length; i += MAX_PER_MSG) {
+        await channel.send({ embeds: embeds.slice(i, i + MAX_PER_MSG) });
+    }
+    return embeds.length;
+}
+
+const { version: BOT_VERSION, lines: BOT_CHANGELOG } = parseChangelog();
 
 const DATA_DIR = path.join(__dirname, 'data');
 const KNOWLEDGE_PATH = path.join(DATA_DIR, 'knowledge.json');
@@ -49,6 +115,14 @@ CONFIG.dailyResetReminder = {
     preferredChannelNames: Array.isArray(CONFIG?.dailyResetReminder?.preferredChannelNames) && CONFIG.dailyResetReminder.preferredChannelNames.length
         ? CONFIG.dailyResetReminder.preferredChannelNames
         : ['codes-and-events', 'gameplay-general', 'debug-log'],
+};
+CONFIG.opsChannels = {
+    changelog: Array.isArray(CONFIG?.opsChannels?.changelog) && CONFIG.opsChannels.changelog.length
+        ? CONFIG.opsChannels.changelog
+        : ['changelog'],
+    debug: Array.isArray(CONFIG?.opsChannels?.debug) && CONFIG.opsChannels.debug.length
+        ? CONFIG.opsChannels.debug
+        : ['debug-log'],
 };
 const APP_NAME = process.env.APP_NAME || CONFIG?.appMetadata?.name || 'Tempest Commander';
 const APP_ID = process.env.APP_ID || CONFIG?.appMetadata?.applicationId || process.env.CLIENT_ID || null;
@@ -205,8 +279,36 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
                     '`!rank` / `!level` / `/rank` - show your rank and progress',
                     '`!leaderboard` / `!lb` / `/leaderboard` - top activity users',
                     '`!blueprint` / `/blueprint` - show planned channel blueprint',
+                    '`!post-changelog [x.y.z]` - admin: re-post changelog to #changelog',
+                    '`!debug-ping` - admin: smoke-test #debug-log post',
                 ].join('\n')
             );
+        case 'post-changelog':
+        case 'postchangelog': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const channel = await findChangelogChannel();
+            if (!channel) return reply('No #changelog channel found.');
+            const targetVersion = (argText || '').trim() || BOT_VERSION;
+            if (!/^\d+\.\d+\.\d+$/.test(targetVersion)) {
+                return reply('Usage: `!post-changelog [x.y.z]` - omit to post the current version.');
+            }
+            const lines = getChangelogLinesForVersion(targetVersion);
+            if (!lines || lines.length === 0) {
+                return reply(`No changelog entries found for v${targetVersion}.`);
+            }
+            try {
+                const embedCount = await postChangelogToChannel(channel, targetVersion, lines);
+                return reply(`Posted v${targetVersion} to #${channel.name} (${embedCount} embed${embedCount === 1 ? '' : 's'}).`);
+            } catch (error) {
+                return reply(`Changelog post failed: ${error.message}`);
+            }
+        }
+        case 'debug-ping':
+        case 'debugping': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const ok = await sendDebug({ content: `🔧 Debug ping by ${username} - bot is connected and able to write to #debug-log.` });
+            return reply(ok ? 'Sent debug ping.' : 'No #debug-log channel found.');
+        }
         case 'suggest': {
             if (!argText) return reply('Usage: `!suggest <text>`');
             const list = loadJson(SUGGESTIONS_PATH, []);
@@ -304,17 +406,88 @@ const client = new Client({
 let dailyResetLastSentDateKey = null;
 let dailyResetTimer = null;
 
-async function findDailyResetChannel() {
+async function getActiveGuild() {
     const guildId = process.env.GUILD_ID;
-    const preferred = CONFIG.dailyResetReminder.preferredChannelNames;
-    const guild = guildId ? await client.guilds.fetch(guildId).catch(() => null) : (client.guilds.cache.first() || null);
+    if (guildId) {
+        const fetched = await client.guilds.fetch(guildId).catch(() => null);
+        if (fetched) return fetched;
+    }
+    return client.guilds.cache.first() || null;
+}
+
+async function findChannelByNames(preferredNames) {
+    const guild = await getActiveGuild();
     if (!guild) return null;
-    const channels = await guild.channels.fetch();
-    for (const name of preferred) {
+    const channels = await guild.channels.fetch().catch(() => null);
+    if (!channels) return null;
+    for (const name of preferredNames) {
         const match = channels.find((ch) => ch && ch.type === 0 && ch.name === name);
         if (match) return match;
     }
     return null;
+}
+
+async function findDailyResetChannel() {
+    return findChannelByNames(CONFIG.dailyResetReminder.preferredChannelNames);
+}
+
+async function findChangelogChannel() {
+    return findChannelByNames(CONFIG.opsChannels.changelog);
+}
+
+async function findDebugChannel() {
+    return findChannelByNames(CONFIG.opsChannels.debug);
+}
+
+async function sendDebug(content) {
+    const channel = await findDebugChannel();
+    if (!channel) {
+        console.log('Debug post skipped: no debug-log text channel found.');
+        return false;
+    }
+    try {
+        if (typeof content === 'string') {
+            await channel.send(content);
+        } else {
+            await channel.send(content);
+        }
+        return true;
+    } catch (error) {
+        console.error('Debug post failed:', error.message);
+        return false;
+    }
+}
+
+async function postCurrentChangelog() {
+    if (!BOT_CHANGELOG || BOT_CHANGELOG.length === 0) {
+        return { posted: false, status: 'no changelog entries for current version' };
+    }
+    const channel = await findChangelogChannel();
+    if (!channel) {
+        return { posted: false, status: 'no #changelog channel found in guild' };
+    }
+    try {
+        const recent = await channel.messages.fetch({ limit: 1 });
+        const last = recent.first();
+        const lastTitle = last?.embeds?.[0]?.title || '';
+        if (lastTitle.includes(`v${BOT_VERSION}`)) {
+            return { posted: false, status: `v${BOT_VERSION} already posted to #${channel.name}` };
+        }
+        const embedCount = await postChangelogToChannel(channel, BOT_VERSION, BOT_CHANGELOG);
+        return { posted: true, status: `v${BOT_VERSION} posted to #${channel.name} (${embedCount} embed${embedCount === 1 ? '' : 's'})` };
+    } catch (error) {
+        return { posted: false, status: `changelog post failed: ${error.message}` };
+    }
+}
+
+async function announceDeployment(changelogStatus) {
+    const lines = [
+        `🚀 **${APP_NAME} deployed** v${BOT_VERSION}`,
+        `📋 ${changelogStatus}`,
+        `⏰ ${new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })} Pacific`,
+    ];
+    const ok = await sendDebug({ content: lines.join('\n') });
+    if (!ok) console.log(`Deploy announcement (no debug channel): ${lines.join(' | ')}`);
 }
 
 async function sendDailyResetReminder() {
@@ -359,6 +532,11 @@ client.once('ready', async () => {
     if (!process.env.GUILD_ID) console.log('Warning: GUILD_ID is missing; setup scripts cannot target a server.');
     console.log('Note: Prefix commands (!ping, !help, etc.) require Message Content Intent enabled in Discord Developer Portal.');
     await registerGuildSlashCommands();
+
+    const changelogResult = await postCurrentChangelog();
+    console.log(`Changelog: ${changelogResult.status}`);
+    await announceDeployment(changelogResult.status);
+
     startDailyResetScheduler();
 });
 

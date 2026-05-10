@@ -8,6 +8,16 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [0.4.0] - 2026-05-10
+
+### Mirror release pipeline (changelog + deploy posts)
+
+- Added full changelog parser/embedder/poster mirroring the original `discord-bot` so every Railway deploy posts to `#changelog` with version, bullet list, and chunked embeds (4096 char safe).
+- Added deploy notification to `#debug-log` on every startup with version + changelog status + Pacific timestamp.
+- Added admin commands: `!post-changelog [x.y.z]` to backfill any release, and `!debug-ping` to smoke-test debug channel access.
+- Added `opsChannels` block in `config/bootstrap-config.json` (`changelog`, `debug`) to make ops targets configurable per environment.
+- Reused channel discovery helpers (`findChannelByNames`) so all ops/reset posts share the same logic.
+
 ## [0.3.5] - 2026-05-10
 
 ### Discord connection hardening
