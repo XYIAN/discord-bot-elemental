@@ -289,27 +289,36 @@ client.on('messageCreate', async (message) => {
 
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
+    try {
+        const cmd = interaction.commandName.toLowerCase();
+        const optionText = interaction.options?.data?.find((o) => o.name === 'text')?.value;
+        const argText = typeof optionText === 'string' ? optionText : '';
+        const userId = interaction.user.id;
+        const username = interaction.user.username;
 
-    const cmd = interaction.commandName.toLowerCase();
-    const argText = interaction.options.getString('text') || '';
-    const userId = interaction.user.id;
-    const username = interaction.user.username;
+        const reply = async (content) => {
+            if (interaction.replied || interaction.deferred) {
+                return interaction.followUp({ content });
+            }
+            return interaction.reply({ content });
+        };
 
-    const reply = async (content) => {
+        await executeCommand({
+            cmd,
+            argText,
+            member: interaction.member,
+            userId,
+            username,
+            reply,
+        });
+    } catch (error) {
+        console.error('Slash interaction failed:', error.message);
         if (interaction.replied || interaction.deferred) {
-            return interaction.followUp({ content });
+            await interaction.followUp({ content: 'Command failed. Check debug logs.' });
+            return;
         }
-        return interaction.reply({ content });
-    };
-
-    await executeCommand({
-        cmd,
-        argText,
-        member: interaction.member,
-        userId,
-        username,
-        reply,
-    });
+        await interaction.reply({ content: 'Command failed. Check debug logs.', ephemeral: true });
+    }
 });
 
 process.on('unhandledRejection', (e) => console.error('Unhandled rejection:', e));

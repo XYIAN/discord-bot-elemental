@@ -10,7 +10,7 @@ const isDryRun = process.argv.includes('--dry-run');
 
 function channelMessageMap() {
     return {
-        'arch-ai': 'Arch AI command channel. Use `!help`, `!rank`, `!leaderboard`, and `!blueprint` here.',
+        'elemental-ai': 'Elemental AI command channel. Use `!help`, `!rank`, `!leaderboard`, and `!blueprint` here.',
         'gameplay-general': 'Welcome to gameplay-general. Share daily progression, route ideas, and practical strategy discussions.',
         'crafting-realm': 'Crafting Realm strategy channel: discuss Crafting Gem farming, efficiency routes, and gear crafting priorities.',
         'mount-realm': 'Mount Realm strategy channel: share Soulvine farming paths and mount upgrade sequencing.',

@@ -8,6 +8,13 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [0.3.2] - 2026-05-10
+
+### Slash command timeout fix
+
+- Fixed slash command interaction handling so `/ping` and related commands no longer time out with "The application did not respond".
+- Added defensive interaction error handling to return an explicit failure reply instead of silent timeouts.
+
 ## [0.3.1] - 2026-05-10
 
 ### Command reliability + ops channel parity
@@ -15,13 +22,14 @@ Versioning:
 - Added Tempest Commander banner assets:
   - generated source banner
   - Discord-ready `680x240` bot banner crop
+- Renamed AI channel/category naming from `arch-ai` to `elemental-ai` across config/docs/seeding to avoid cross-project naming bleed.
 - Added guild slash commands (`/ping`, `/help`, `/blueprint`, `/rank`, `/leaderboard`) so core smoke-test commands work even when Message Content Intent is disabled for prefix commands.
 - Refactored command execution into a shared handler used by both message commands and slash interactions.
 - Added startup guidance log clarifying that `!` prefix commands require Message Content Intent in Discord Developer Portal.
 - Expanded channel blueprint to include:
-  - `arch-ai` category with `#arch-ai`
+  - `elemental-ai` category with `#elemental-ai`
   - `ops` category with `#changelog` and `#debug-log`
-- Updated welcome seeding messages for `#arch-ai`, `#changelog`, and `#debug-log`.
+- Updated welcome seeding messages for `#elemental-ai`, `#changelog`, and `#debug-log`.
 
 ## [0.3.0] - 2026-05-10
 

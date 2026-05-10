@@ -6,7 +6,7 @@ Main server branding is intentionally flexible. Private clan section is fixed to
 
 ## Public AI Category
 
-- `#arch-ai` - Primary bot command and AI assistant channel (`!help`, `!rank`, `!leaderboard`, `!blueprint`)
+- `#elemental-ai` - Primary bot command and AI assistant channel (`!help`, `!rank`, `!leaderboard`, `!blueprint`)
 
 ## Public Strategy Category
 

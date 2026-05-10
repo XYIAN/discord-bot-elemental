@@ -62,9 +62,9 @@
   "channelBlueprint": {
     "publicCategories": [
       {
-        "name": "arch-ai",
+        "name": "elemental-ai",
         "channels": [
-          "arch-ai"
+          "elemental-ai"
         ]
       },
       {
