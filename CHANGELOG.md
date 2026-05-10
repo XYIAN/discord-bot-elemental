@@ -7,6 +7,12 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [0.2.1] - 2026-05-10
+
+### Assets
+
+- Added generated Tempest / Legend of Elements Discord server icon at `assets/tempest-elements-discord-icon.png`
+
 ## [0.2.0] - 2026-04-20
 
 ### Phase 3: clan-rank ladder and server blueprint execution
