@@ -8,6 +8,16 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [1.0.1] - 2026-05-10
+
+### Post-launch hardening
+
+- Expanded `.cursorrules` for `discord-bot-elemental` to mirror the breadth of the original Archero bot rules (channel behavior table, role + command access matrix, ops workflow, "do not touch the other repo").
+- Added optional `scripts/sync-facts.js` - validates and renumbers `custom_facts` IDs, removes exact-duplicate fact texts, trims whitespace; supports `--dry-run`.
+- Added optional `scripts/categorize-knowledge.js` - infers per-fact category tags from keywords (classes, realms, arena, builds, clan, stats, etc.); supports `--apply` and `--apply --force`.
+- Final pass on `docs/BACKSTORY.md` adding an "Operational reality (post v1.0.0)" recap of every shipped feature and a "Future-agent ground rules" checklist.
+- Bumped `package.json` to `1.0.1`.
+
 ## [1.0.0] - 2026-05-10
 
 ### Launch readiness

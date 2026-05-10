@@ -3,18 +3,55 @@
 ## Project structure
 
 - Root files: `package.json`, `railway.json`, `Procfile`, `.nvmrc`, `README.md`, `.cursorrules`, `CHANGELOG.md`, `bot.js`
-- Data files: `data/*.json`
+- Data files: `data/*.json` (auto-seeded into `DATA_VOLUME_PATH` on first boot)
 - Documentation: `docs/`
+- Setup + ops scripts: `scripts/` (`create-roles.js`, `create-channels.js`, `apply-permissions.js`, `seed-welcome-posts.js`, `audit-elemental-ai.js`, `backup-data.js`)
+- Shared schema/helpers: `scripts/lib/data-store.js`
 
-## Development approach
+## Railway deployment
 
-- Keep bot logic in `bot.js` until a planned modular split.
-- Make game-specific behavior configurable rather than hardcoded when possible.
-- Never copy old game knowledge text into this repo.
+- Bot runs 24/7 on Railway. `npm start` runs `node bot.js`.
+- Daily reset reminder fires at 9 PM Pacific. Clan recruit fires every other day.
+- Required env: `DISCORD_TOKEN`, `CLIENT_ID`, `GUILD_ID`.
+- Optional env: `OPENAI_API_KEY`, `OWNER_ID`, `DATA_VOLUME_PATH`, `PORT`, app metadata vars.
+- Express `/health` route is required by Railway healthcheck. Do not remove.
 
-## Critical release rules
+## Channel behavior
 
-1. Always update `CHANGELOG.md` before every push to `main`.
-2. Newest version entry must be first (`## [x.y.z]`) in semver order.
-3. Verify deployment posts to both release/debug channels after push.
-4. Never commit secrets (`.env`, tokens, webhook URLs).
+| Channel | Bot replies? | Notes |
+|---------|-------------|-------|
+| `#elemental-ai` | Yes (anyone) | Tempest Commander OpenAI Q&A; vision gated to trusted roles |
+| `#changelog` | Auto-post on deploy | Bot reads first entry from `CHANGELOG.md` |
+| `#debug-log` | Auto-post on deploy + errors | `sendDebug()` target |
+| `#tempest-clan-chat` | Never replies free-form | Bot only posts `!post-clan-requirements` and welcome content |
+| Activity channels | Awards points on each non-command message (60s cooldown) | Drives forum tier auto-grant |
+| All others | Commands only | `!ping`, `!help`, `!menu`, etc. |
+
+## Roles and command access
+
+- Everyone: `!ping`, `!help`, `!menu`, `!rank`, `!leaderboard`, `!blueprint`, `!suggest`, `!opinion`, `!faq`, `!listfacts`, `!listopinions`, `!myperms`, `!forget`, `!ai status`, slash equivalents.
+- Tempest Scribe (50 pts): suggest, opinion, list (auto-granted from activity).
+- Tempest Loremaster (200 pts): + `!addfact`.
+- Tempest Archivist (500 pts): + `!removefact`.
+- Vision-trusted (`XY Tempest Officer`, `Admin`, `Moderator`): can attach images in `#elemental-ai`.
+- Owner (`OWNER_ID`): `!ai on`, `!ai off`.
+- Admin (`Admin`): everything plus `!recruit`, `!post-clan-requirements`, `!reset`, `!post-changelog`, `!debug-ping`, `!setupreaction`, suggestion queue (`!suggestions`, `!edit`, `!approve`, `!reject`, `!grant`), `!removeopinion`.
+
+## Workflow
+
+- Update `CHANGELOG.md` after every completed task. Newest entry first in semver order.
+- Keep `bot.js` as a single file. Only split if it exceeds ~1000 lines (it is currently larger than the original because of AI parity, but still cohesive).
+- New config goes in `config/bootstrap-config.json` under named blocks. No scattered constants.
+- Channel/role lookups go through `findChannelByNames()` / `findRoleByName()`. No hardcoded IDs.
+- Errors go to `#debug-log` via `sendDebug()`. Never expose stack traces to users.
+- Never commit `.env`, `.env.local`, tokens, or webhook URLs.
+- Run `npm run audit:ai` before declaring a release ready.
+- Run `npm run backup:data` before any large knowledge edit pass; restore via `cp data-backups/<ts>/*.json $DATA_VOLUME_PATH/`.
+- Roll back via `git revert <sha> && git push origin main`. Railway auto-rebuilds.
+
+## Don't
+
+- Don't touch `discord-bot/` (the Archero 2 bot). This repo is `discord-bot-elemental` only.
+- Don't carry over Archero-2-specific commands or content.
+- Don't use webhooks. Bot-direct posting only.
+- Don't reintroduce hardcoded numeric channel IDs.
