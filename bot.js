@@ -127,6 +127,12 @@ CONFIG.opsChannels = {
     debug: Array.isArray(CONFIG?.opsChannels?.debug) && CONFIG.opsChannels.debug.length
         ? CONFIG.opsChannels.debug
         : ['debug-log'],
+    changelogIds: Array.isArray(CONFIG?.opsChannels?.changelogIds)
+        ? CONFIG.opsChannels.changelogIds
+        : [],
+    debugIds: Array.isArray(CONFIG?.opsChannels?.debugIds)
+        ? CONFIG.opsChannels.debugIds
+        : [],
 };
 CONFIG.welcomeChannelNames = Array.isArray(CONFIG?.welcomeChannelNames) && CONFIG.welcomeChannelNames.length
     ? CONFIG.welcomeChannelNames
@@ -881,15 +887,30 @@ async function findChannelByNames(preferredNames) {
     return null;
 }
 
+async function findChannelByIds(preferredIds) {
+    const guild = await getActiveGuild();
+    if (!guild) return null;
+    for (const id of preferredIds || []) {
+        if (!id) continue;
+        const ch = await guild.channels.fetch(String(id)).catch(() => null);
+        if (ch && ch.type === 0) return ch;
+    }
+    return null;
+}
+
 async function findDailyResetChannel() {
     return findChannelByNames(CONFIG.dailyResetReminder.preferredChannelNames);
 }
 
 async function findChangelogChannel() {
+    const byId = await findChannelByIds(CONFIG.opsChannels.changelogIds);
+    if (byId) return byId;
     return findChannelByNames(CONFIG.opsChannels.changelog);
 }
 
 async function findDebugChannel() {
+    const byId = await findChannelByIds(CONFIG.opsChannels.debugIds);
+    if (byId) return byId;
     return findChannelByNames(CONFIG.opsChannels.debug);
 }
 

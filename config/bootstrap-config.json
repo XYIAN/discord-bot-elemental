@@ -76,6 +76,12 @@
     ],
     "debug": [
       "debug-log"
+    ],
+    "changelogIds": [
+      "1503064878045204721"
+    ],
+    "debugIds": [
+      "1503064878410371254"
     ]
   },
   "welcomeChannelNames": [

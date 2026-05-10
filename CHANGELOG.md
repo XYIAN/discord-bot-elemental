@@ -8,6 +8,17 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [1.0.3] - 2026-05-10
+
+### Ops channel targeting hardening
+
+- Added explicit channel-ID fallback for ops posts: `opsChannels.changelogIds` and `opsChannels.debugIds`.
+- `findChangelogChannel()` and `findDebugChannel()` now resolve by ID first, then by name.
+- Wired production channel IDs in `config/bootstrap-config.json`:
+  - changelog: `1503064878045204721`
+  - debug-log: `1503064878410371254`
+- Verified live with direct bot-token posts to both channels (permission and reachability confirmed).
+
 ## [1.0.2] - 2026-05-10
 
 ### Critical Discord reconnect-loop fix
