@@ -8,6 +8,18 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [1.0.0] - 2026-05-10
+
+### Launch readiness
+
+- Added `npm run audit:ai` - validates env (`OPENAI_API_KEY`, `OWNER_ID`, `DATA_VOLUME_PATH`, etc.), persona file, knowledge file, and the live Discord guild for every channel and role the bot expects. Failures abort with non-zero exit.
+- Added `npm run backup:data` - snapshots `data/*.json` to `data-backups/<UTC ISO>/` (also reads from `DATA_VOLUME_PATH` if set).
+- Added `docs/BACKUP-STRATEGY.md` documenting three paths: manual repo snapshots (default), Railway cron, S3 / object storage.
+- Extended `docs/BOOTSTRAP-RUNBOOK.md` with Stage 7 (pre-launch audit), Stage 8 (backups), and Stage 9 (incident response and rollback via `git revert`).
+- Added `data-backups/` to `.gitignore`.
+- Updated `README.md` with the full grouped command surface, persona/backup doc links, and launch readiness commands.
+- Bumped `package.json` to `1.0.0`.
+
 ## [0.9.0] - 2026-05-10
 
 ### Forum tier roles for knowledge contribution

@@ -57,24 +57,56 @@ npm start
 - Documentation and runbooks: `docs/`
 - Release history: `CHANGELOG.md`
 
-## Core Commands (Template)
+## Core Commands
 
-- `!ping` - bot status
-- `!help` / `!menu` - command list
-- `!suggest <text>` - queue a suggestion
-- `!addfact <text>` - add knowledge fact (admin)
-- `!rank` / `!level` - activity rank
-- `!leaderboard` / `!lb` - top activity users
-- `!blueprint` - show planned channel + clan structure
+General:
+
+- `!ping` / `/ping` - status
+- `!help` / `!menu` / `/help` - full command list (grouped)
+- `!rank` / `/rank` - your activity rank and progress
+- `!leaderboard` / `/leaderboard` - top activity users
+- `!blueprint` / `/blueprint` - planned channel + clan structure
+
+Knowledge:
+
+- `!suggest <text>` - submit a suggestion (anyone)
+- `!opinion <text>` - record an opinion
+- `!faq <topic>` - search the knowledge base
+- `!listfacts [page]` / `!listopinions [page]` - paged lists
+- `!addfact <text>` - gated by Tempest Loremaster + or admin
+- `!removefact <id>` - gated by Tempest Archivist or admin
+
+AI (only inside `#elemental-ai`):
+
+- Just ask a question. Vision (image attachments) supported for trusted roles.
+- `!ai status` / `!ai on` / `!ai off` (on/off owner only)
+- `!forget` - clear your AI memory
+
+Tempest game and admin:
+
+- `!contributors` - aggregated knowledge contribution leaderboard
+- `!myperms` - show your forum tier and capabilities
+- `!recruit`, `!post-clan-requirements`, `!reset` - admin
+- `!setupreaction` - post the AI opt-in reaction message (admin)
+- `!post-changelog [x.y.z]`, `!debug-ping` - ops
 
 ## Blueprint Docs
 
 - `docs/CHANNEL-BLUEPRINT.md` - public strategy and private Tempest clan channels
 - `docs/SERVER-BOT-SETUP.md` - UI vs CLI setup workflow for Discord + Railway
-- `docs/ENV-AND-CHANNELS.md` - env variables, role map, and tier ladder
-- `docs/BOOTSTRAP-RUNBOOK.md` - end-to-end implementation sequence
+- `docs/ENV-AND-CHANNELS.md` - env variables, role map, activity ladder, forum tier ladder
+- `docs/BOOTSTRAP-RUNBOOK.md` - end-to-end implementation, audit, backup, rollback
 - `docs/CLI-SETUP-COMMANDS.md` - copy/paste command cookbook
+- `docs/BACKUP-STRATEGY.md` - data backup paths (manual / cron / S3)
+- `docs/PERSONA.md` - Tempest Commander persona used by the AI
 - `docs/BACKSTORY.md` - project intent and future-agent constraints
+
+## Launch readiness
+
+```bash
+npm run audit:ai      # validate env, persona, knowledge, channels, roles
+npm run backup:data   # snapshot data/*.json into data-backups/<timestamp>/
+```
 
 ## Mandatory Release Rule
 

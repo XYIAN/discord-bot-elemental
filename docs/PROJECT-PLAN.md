@@ -50,3 +50,13 @@ This repo is the baseline for launching a game-specific Discord bot for a new ga
 - Owner kill switch `!ai on/off`, `!ai status`
 - Thumbs feedback persisted to `data/feedback.json`
 - Persona finalized in `docs/PERSONA.md`
+
+## Phase 7 - Launch readiness (shipped in v1.0.0)
+
+- `npm run audit:ai` smoke audits env, persona, knowledge, and live Discord channels/roles
+- `npm run backup:data` snapshots `data/*.json` to `data-backups/<timestamp>/`
+- `docs/BACKUP-STRATEGY.md` (manual repo / cron / S3 paths)
+- Incident response and rollback runbook in `docs/BOOTSTRAP-RUNBOOK.md` (Stages 7-9)
+- README rewritten with full grouped command surface
+
+Project is at v1.0.0. Future feature work continues in this same repo with the same release rule: always update `CHANGELOG.md` before pushing to `main`.
