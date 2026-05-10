@@ -1649,15 +1649,82 @@ app.get('/health', (_req, res) =>
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Health server listening on ${port}`));
 
-function loginWithRetry() {
+const LOGIN_BASE_DELAY_MS = 5_000;
+const LOGIN_MAX_DELAY_MS = 60_000;
+const LOGIN_MAX_ATTEMPTS = 8;
+const FATAL_GATEWAY_CLOSE_CODES = new Set([4004, 4010, 4011, 4013, 4014]);
+let loginAttemptCount = 0;
+let loginInFlight = false;
+let pendingLoginTimer = null;
+
+function isFatalLoginError(error) {
+    const msg = String(error?.message || '').toLowerCase();
+    return (
+        msg.includes('token') ||
+        msg.includes('used disallowed intents') ||
+        msg.includes('disallowed intents') ||
+        msg.includes('invalid intents') ||
+        msg.includes('sharding is required')
+    );
+}
+
+function scheduleLoginRetry(reason) {
+    if (pendingLoginTimer) clearTimeout(pendingLoginTimer);
+    if (loginAttemptCount >= LOGIN_MAX_ATTEMPTS) {
+        console.error(
+            `Discord login failed ${loginAttemptCount} times (${reason}). ` +
+            'Stopping process to avoid reconnect spam. Fix env/config and redeploy.'
+        );
+        process.exit(1);
+    }
+    const backoff = Math.min(LOGIN_BASE_DELAY_MS * (2 ** (loginAttemptCount - 1)), LOGIN_MAX_DELAY_MS);
+    const jitter = Math.floor(Math.random() * 500);
+    const delay = backoff + jitter;
+    console.error(
+        `Discord login attempt ${loginAttemptCount} failed (${reason}). ` +
+        `Retrying in ${Math.round(delay / 1000)}s.`
+    );
+    pendingLoginTimer = setTimeout(() => {
+        pendingLoginTimer = null;
+        loginWithRetry();
+    }, delay);
+}
+
+async function loginWithRetry() {
     if (!process.env.DISCORD_TOKEN) {
         console.error('Missing DISCORD_TOKEN. Refusing to run disconnected.');
         process.exit(1);
     }
-    client.login(process.env.DISCORD_TOKEN).catch((error) => {
-        console.error(`Discord login failed: ${error.message}. Retrying in 5 seconds...`);
-        setTimeout(loginWithRetry, 5000);
-    });
+    if (client.isReady()) return;
+    if (loginInFlight) return;
+    loginInFlight = true;
+    loginAttemptCount += 1;
+    try {
+        await client.login(process.env.DISCORD_TOKEN);
+        loginAttemptCount = 0;
+    } catch (error) {
+        if (isFatalLoginError(error)) {
+            console.error(
+                `Fatal Discord login error (${error.message}). ` +
+                'Stopping process to avoid connection spam. Update bot token/intents and restart.'
+            );
+            process.exit(1);
+        }
+        scheduleLoginRetry(error.message || 'unknown login error');
+    } finally {
+        loginInFlight = false;
+    }
 }
+
+client.on('shardDisconnect', (event, shardId) => {
+    const code = Number(event?.code);
+    if (!Number.isFinite(code)) return;
+    if (!FATAL_GATEWAY_CLOSE_CODES.has(code)) return;
+    console.error(
+        `Fatal Discord gateway close code ${code} on shard ${shardId}. ` +
+        'Stopping process to prevent reconnect loops. Check token/intents/sharding config.'
+    );
+    process.exit(1);
+});
 
 loginWithRetry();

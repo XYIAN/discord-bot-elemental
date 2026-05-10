@@ -8,6 +8,15 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [1.0.2] - 2026-05-10
+
+### Critical Discord reconnect-loop fix
+
+- Replaced unbounded 5-second login retry loop with bounded exponential backoff and hard stop after max attempts to prevent connection spam.
+- Added fatal login-error detection (invalid token/intents/sharding config) that exits immediately instead of retrying forever.
+- Added fatal gateway close-code guard (`4004`, `4010`, `4011`, `4013`, `4014`) to terminate process and avoid repeated reconnect/identify storms.
+- This directly addresses bot-token-reset incidents caused by excessive reconnect behavior.
+
 ## [1.0.1] - 2026-05-10
 
 ### Post-launch hardening
