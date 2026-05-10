@@ -8,6 +8,17 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [0.9.0] - 2026-05-10
+
+### Forum tier roles for knowledge contribution
+
+- Added `forumRoleTiers` block in `config/bootstrap-config.json` with three Tempest-themed tiers gated by activity points: **Tempest Scribe** (50), **Tempest Loremaster** (200), **Tempest Archivist** (500).
+- Auto-grants tier role and posts a debug-log notice when a member crosses a threshold via `awardActivityPoint` -> `maybeGrantForumTierRole`.
+- Replaced raw admin-only checks on `!addfact` and `!removefact` with capability-based gating (admins still bypass).
+- Added `!myperms` / `!perms` so members can see their tier and capability matrix.
+- Updated `scripts/create-roles.js` to also provision the forum tier roles + the `Elemental AI Enabled` reaction-role role.
+- Documented the forum tier ladder in `docs/ENV-AND-CHANNELS.md`.
+
 ## [0.8.0] - 2026-05-10
 
 ### Tempest game commands

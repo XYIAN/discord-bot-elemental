@@ -26,12 +26,13 @@ This repo is the baseline for launching a game-specific Discord bot for a new ga
 - Opinions store (`!opinion`, `!listopinions`, `!removeopinion`)
 - Volume seeding when `DATA_VOLUME_PATH` is mounted
 
-## Phase 4 - Gamification
+## Phase 4 - Gamification (shipped baseline; forum tiers in v0.9.0)
 
 - Configure activity channels
 - Configure tier thresholds and role names
 - Validate `!rank` and `!leaderboard`
 - Add anti-spam and cooldown controls
+- Forum tier roles auto-granted (Tempest Scribe -> Loremaster -> Archivist) gating knowledge contribution
 
 ## Phase 5 - Hardening and operations
 

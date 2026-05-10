@@ -76,6 +76,16 @@ Fill this out when building the new game community:
 | 800 | Tempest High Rank 1 |
 | 1500 | Tempest Left Marshal |
 
+## Forum tier roles (knowledge contribution gating)
+
+| Threshold | Role | Permissions |
+|---|---|---|
+| 50 | Tempest Scribe | suggest, opinion, list |
+| 200 | Tempest Loremaster | + addFact |
+| 500 | Tempest Archivist | + removeFact |
+
+Auto-granted when activity points cross the threshold. Admins always bypass these gates. Configure in `config/bootstrap-config.json` -> `forumRoleTiers`.
+
 ## Daily reset reminder
 
 - Runs inside the bot process at **9:00 PM Pacific** (`America/Los_Angeles`).

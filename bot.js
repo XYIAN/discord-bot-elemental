@@ -149,6 +149,13 @@ CONFIG.clanRecruit = {
         ? CONFIG.clanRecruit.preferredChannelNames
         : ['tempest-recruit', 'gameplay-general'],
 };
+CONFIG.forumRoleTiers = Array.isArray(CONFIG?.forumRoleTiers) && CONFIG.forumRoleTiers.length
+    ? CONFIG.forumRoleTiers
+    : [
+        { name: 'Tempest Scribe', threshold: 50, canSuggest: true, canAddOpinion: true, canAddFact: false, canRemoveFact: false, canListFacts: true },
+        { name: 'Tempest Loremaster', threshold: 200, canSuggest: true, canAddOpinion: true, canAddFact: true, canRemoveFact: false, canListFacts: true },
+        { name: 'Tempest Archivist', threshold: 500, canSuggest: true, canAddOpinion: true, canAddFact: true, canRemoveFact: true, canListFacts: true },
+    ];
 CONFIG.ai = {
     enabled: CONFIG?.ai?.enabled !== false,
     channelNames: Array.isArray(CONFIG?.ai?.channelNames) && CONFIG.ai.channelNames.length
@@ -275,6 +282,25 @@ function getNextActivityTier(points) {
     return CONFIG.activityTiers.find((tier) => points < tier.threshold) || null;
 }
 
+function getForumTierForPoints(points) {
+    let current = null;
+    for (const tier of CONFIG.forumRoleTiers) {
+        if (points >= tier.threshold) current = tier;
+    }
+    return current;
+}
+
+function memberForumPermissions(member, points) {
+    const tier = getForumTierForPoints(points);
+    return tier || { name: null, canSuggest: true, canAddOpinion: true, canAddFact: false, canRemoveFact: false, canListFacts: true };
+}
+
+function memberCanWithRoleOrAdmin(member, points, capability) {
+    if (isAdmin(member)) return true;
+    const perms = memberForumPermissions(member, points);
+    return Boolean(perms[capability]);
+}
+
 function buildProgressBar(points) {
     const current = getActivityTier(points);
     const next = getNextActivityTier(points);
@@ -390,6 +416,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
                     '',
                     '**Tempest game**',
                     '`!contributors` / `!top` - top knowledge contributors',
+                    '`!myperms` / `!perms` - show your forum tier and capabilities',
                     '',
                     '**Admin (ops)**',
                     '`!post-changelog [x.y.z]` - re-post changelog to #changelog',
@@ -529,6 +556,28 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             const sent = await sendDailyResetReminder();
             return reply(sent ? 'Daily reset reminder sent now.' : 'No target channel found.');
         }
+        case 'myperms':
+        case 'perms': {
+            const userPoints = (loadJson(ACTIVITY_PATH, {})[userId]?.points) || 0;
+            const tier = getForumTierForPoints(userPoints);
+            const isAdminFlag = isAdmin(member);
+            const perms = memberForumPermissions(member, userPoints);
+            return reply(
+                [
+                    `**Your forum status**`,
+                    `Activity points: **${userPoints}**`,
+                    `Forum tier: **${tier?.name || 'none yet'}**`,
+                    `Admin: **${isAdminFlag ? 'yes' : 'no'}**`,
+                    '',
+                    '**Capabilities**',
+                    `- canSuggest: ${isAdminFlag || perms.canSuggest ? 'yes' : 'no'}`,
+                    `- canAddOpinion: ${isAdminFlag || perms.canAddOpinion ? 'yes' : 'no'}`,
+                    `- canListFacts: ${isAdminFlag || perms.canListFacts ? 'yes' : 'no'}`,
+                    `- canAddFact: ${isAdminFlag || perms.canAddFact ? 'yes' : 'no'}`,
+                    `- canRemoveFact: ${isAdminFlag || perms.canRemoveFact ? 'yes' : 'no'}`,
+                ].join('\n')
+            );
+        }
         case 'suggest': {
             if (!argText) return reply('Usage: `!suggest <text>`');
             const list = loadJson(SUGGESTIONS_PATH, []);
@@ -547,7 +596,10 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             return reply(`Suggestion #${id} received. Admin will review.`);
         }
         case 'addfact': {
-            if (!isAdmin(member)) return reply('Admin only command.');
+            const userPoints = (loadJson(ACTIVITY_PATH, {})[userId]?.points) || 0;
+            if (!memberCanWithRoleOrAdmin(member, userPoints, 'canAddFact')) {
+                return reply('You need the Tempest Loremaster (or higher) role or admin to add facts.');
+            }
             if (!argText) return reply('Usage: `!addfact <text>`');
             const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
             if (!Array.isArray(knowledge.custom_facts)) knowledge.custom_facts = [];
@@ -577,7 +629,10 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         }
         case 'removefact':
         case 'rf': {
-            if (!isAdmin(member)) return reply('Admin only command.');
+            const userPoints = (loadJson(ACTIVITY_PATH, {})[userId]?.points) || 0;
+            if (!memberCanWithRoleOrAdmin(member, userPoints, 'canRemoveFact')) {
+                return reply('You need the Tempest Archivist role or admin to remove facts.');
+            }
             const id = parseInt((argText || '').trim(), 10);
             if (!Number.isInteger(id)) return reply('Usage: `!removefact <id>`');
             const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
@@ -1076,6 +1131,21 @@ async function sendReactionRoleOptInMessage() {
     }
 }
 
+async function maybeGrantForumTierRole(member, points) {
+    try {
+        const tier = getForumTierForPoints(points);
+        if (!tier?.name) return;
+        const role = await findRoleByName(tier.name);
+        if (!role) return;
+        if (member.roles.cache.has(role.id)) return;
+        await member.roles.add(role).catch((e) => console.error(`Forum tier grant failed: ${e.message}`));
+        console.log(`Forum tier: granted ${tier.name} to ${member.user?.username || member.id}`);
+        await sendDebug({ content: `🎓 Forum tier upgrade: <@${member.id}> reached **${tier.name}** at ${points} pts.` });
+    } catch (error) {
+        console.error('maybeGrantForumTierRole failed:', error.message);
+    }
+}
+
 async function handleNewMember(member) {
     try {
         const baseRoleName = CONFIG?.roleNames?.base;
@@ -1502,7 +1572,10 @@ client.on('messageCreate', async (message) => {
     const isCommand = message.content.startsWith('!');
 
     if (message.guild && isActivityChannel(message.channel) && !isCommand) {
-        awardActivityPoint(message.author.id, message.author.username);
+        const newPoints = awardActivityPoint(message.author.id, message.author.username);
+        if (newPoints != null && message.member) {
+            await maybeGrantForumTierRole(message.member, newPoints);
+        }
     }
 
     if (!isCommand) {

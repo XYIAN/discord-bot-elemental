@@ -19,6 +19,8 @@ async function main() {
         config.clanRoleNames.verified,
         config.clanRoleNames.officer,
         ...config.activityTiers.map((t) => t.name),
+        ...((config.forumRoleTiers || []).map((t) => t.name)),
+        config?.reactionRole?.roleName,
     ].filter(Boolean);
 
     console.log(`Guild ${guildId}: ${roles.length} existing roles`);

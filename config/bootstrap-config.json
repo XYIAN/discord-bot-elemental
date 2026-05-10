@@ -99,6 +99,35 @@
       "gameplay-general"
     ]
   },
+  "forumRoleTiers": [
+    {
+      "name": "Tempest Scribe",
+      "threshold": 50,
+      "canSuggest": true,
+      "canAddOpinion": true,
+      "canAddFact": false,
+      "canRemoveFact": false,
+      "canListFacts": true
+    },
+    {
+      "name": "Tempest Loremaster",
+      "threshold": 200,
+      "canSuggest": true,
+      "canAddOpinion": true,
+      "canAddFact": true,
+      "canRemoveFact": false,
+      "canListFacts": true
+    },
+    {
+      "name": "Tempest Archivist",
+      "threshold": 500,
+      "canSuggest": true,
+      "canAddOpinion": true,
+      "canAddFact": true,
+      "canRemoveFact": true,
+      "canListFacts": true
+    }
+  ],
   "ai": {
     "enabled": true,
     "channelNames": [
