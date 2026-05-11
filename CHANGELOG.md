@@ -26,6 +26,10 @@ Versioning:
 - Restored source `!grant` behavior: it now manually grants the AI access role to a mentioned user (`!grant @user`) instead of suggestion promotion semantics.
 - Mirrored source knowledge-command gating model (`canMemberDo`) so `!addfact` / `!opinion` / `!listfacts` / `!faq` / removals follow contributor-tier or verified/admin role access.
 - Added source-style contributor tier upgrades on approval events (`checkContributorTierUpgrade`) driven by approved suggestion counts.
+- Restored source suggestion lifecycle behavior:
+  - `!approve` now files approved suggestions into knowledge storage (default `custom_facts`, optional `category/key`, optional override text via `|`).
+  - `!edit` and `!reject` now operate on pending queue entries only and track edit/reject metadata/reason.
+  - `!suggest` now enforces source minimum length (10 chars) before queueing.
 
 ## [1.0.7] - 2026-05-10
 

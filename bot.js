@@ -316,6 +316,84 @@ function recordSuggestion(userId) {
     suggestCooldown.set(userId, tracker);
 }
 
+function parseApproveArgs(argText) {
+    const text = String(argText || '');
+    const sepIdx = text.indexOf('|');
+    const left = (sepIdx === -1 ? text : text.slice(0, sepIdx)).trim();
+    const overrideRaw = sepIdx === -1 ? '' : text.slice(sepIdx + 1).trim();
+    const tokens = left.split(/\s+/).filter(Boolean);
+    return {
+        id: parseInt(tokens[0], 10),
+        category: tokens[1] ? tokens[1].toLowerCase() : null,
+        key: tokens[2] ? tokens[2].toLowerCase() : null,
+        overrideText: overrideRaw.length > 0 ? overrideRaw : null,
+    };
+}
+
+function autoKey(text, fallbackId) {
+    const words = String(text || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length > 1 && !['the', 'and', 'for', 'with', 'this', 'that'].includes(w));
+    const slug = words.slice(0, 3).join('_').slice(0, 30);
+    return slug || `note_${fallbackId}`;
+}
+
+function applyApprovedToKnowledge({ category, key, text, by, suggestionId, source }) {
+    const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
+    const today = new Date().toISOString().split('T')[0];
+    const credit = `${by} (via suggestion)`;
+    const entrySource = source || 'suggestion';
+
+    if (!category || category === 'custom_facts') {
+        if (!Array.isArray(knowledge.custom_facts)) knowledge.custom_facts = [];
+        const id = nextId(knowledge.custom_facts);
+        knowledge.custom_facts.push({
+            id,
+            text,
+            added_by: credit,
+            added_at: today,
+            source: entrySource,
+            suggestion_id: suggestionId,
+        });
+        saveJson(KNOWLEDGE_PATH, knowledge);
+        return { ok: true, locator: 'custom_facts' };
+    }
+
+    if (category === 'opinions') {
+        const opinions = loadJson(OPINIONS_PATH, []);
+        opinions.push({
+            id: nextId(opinions),
+            text,
+            by: credit,
+            at: new Date().toISOString(),
+            source: entrySource,
+            suggestion_id: suggestionId,
+        });
+        saveJson(OPINIONS_PATH, opinions);
+        return { ok: true, locator: 'opinions' };
+    }
+
+    if (!knowledge[category] || typeof knowledge[category] !== 'object' || Array.isArray(knowledge[category])) {
+        knowledge[category] = {};
+    }
+    const finalKey = key || autoKey(text, suggestionId);
+    knowledge[category][finalKey] = {
+        text,
+        added_by: credit,
+        added_at: today,
+        source: entrySource,
+    };
+    saveJson(KNOWLEDGE_PATH, knowledge);
+    return { ok: true, locator: `${category}.${finalKey}` };
+}
+
+function countFacts() {
+    const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
+    return Array.isArray(knowledge.custom_facts) ? knowledge.custom_facts.length : 0;
+}
+
 function getApprovedCountForUser(userId) {
     const suggestions = loadJson(SUGGESTIONS_PATH, []);
     return suggestions.filter((s) => (s.status === 'approved' || s.status === 'granted') && s.userId === userId).length;
@@ -500,7 +578,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
                     '`!removeopinion <id>` - remove opinion',
                     '`!suggestions [pending|approved|rejected|granted]` - list suggestion queue',
                     '`!edit <id> <text>` - edit suggestion text',
-                    '`!approve <id>` / `!reject <id>` - decide a suggestion',
+                    '`!approve <id> [category] [key] [| override]` / `!reject <id> [reason]` - decide a suggestion',
                     '`!grant @user` - manually grant AI access role',
                     '',
                     '**AI (in #elemental-ai)**',
@@ -696,7 +774,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         }
         case 'suggest': {
             if (!hasAIAccess(member)) return reply('You need the **Elemental AI Enabled** or verified role to use this command.');
-            if (!argText) return reply('Usage: `!suggest <text>`');
+            if (!argText || argText.length < 10) return reply('Usage: `!suggest <your correction or suggestion>` (at least 10 characters)');
             const check = canSuggest(userId);
             if (!check.ok) return reply(`⏳ ${check.reason}`);
             const list = loadJson(SUGGESTIONS_PATH, []);
@@ -853,41 +931,75 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             if (!m) return reply('Usage: `!edit <id> <new text>`');
             const id = parseInt(m[1], 10);
             const newText = m[2].trim();
+            if (newText.length < 10) return reply('Usage: `!edit <id> <new text>` (minimum 10 characters).');
             const list = loadJson(SUGGESTIONS_PATH, []);
-            const target = list.find((s) => Number(s.id) === id);
-            if (!target) return reply(`No suggestion found with id ${id}.`);
+            const target = list.find((s) => Number(s.id) === id && (s.status || 'pending') === 'pending');
+            if (!target) return reply(`No pending suggestion found with id ${id}.`);
+            if (!target.original_text) target.original_text = target.text;
             target.text = newText;
+            target.edited_by = username;
+            target.edited_at = new Date().toISOString();
             saveJson(SUGGESTIONS_PATH, list);
             return reply(`Suggestion #${id} updated.`);
         }
         case 'approve': {
             if (!isModerator(member)) return reply('This command requires the **Moderator**, **Officer**, or **Admin** role.');
-            const id = parseInt((argText || '').trim(), 10);
-            if (!Number.isInteger(id)) return reply('Usage: `!approve <id>`');
+            const args = parseApproveArgs(argText);
+            if (!args.id || Number.isNaN(args.id)) {
+                return reply('Usage: `!approve <id> [category] [key] [| override text]`');
+            }
             const list = loadJson(SUGGESTIONS_PATH, []);
-            const target = list.find((s) => Number(s.id) === id);
-            if (!target) return reply(`No suggestion found with id ${id}.`);
+            const target = list.find((s) => Number(s.id) === args.id && (s.status || 'pending') === 'pending');
+            if (!target) return reply(`No pending suggestion found with id ${args.id}.`);
+            const finalText = args.overrideText || target.text;
+            const finalCategory = args.category || target.proposed_category || 'custom_facts';
+            const finalKey = args.key || target.proposed_key || null;
+            const result = applyApprovedToKnowledge({
+                category: finalCategory,
+                key: finalKey,
+                text: finalText,
+                by: target.by || username,
+                suggestionId: target.id,
+                source: target.source || 'suggestion',
+            });
+            if (!result.ok) return reply(`Approve failed: ${result.error || 'unknown error'}`);
             target.status = 'approved';
             target.decidedBy = username;
             target.decidedAt = new Date().toISOString();
+            target.approved_category = finalCategory;
+            target.approved_locator = result.locator;
+            if (args.overrideText) {
+                if (!target.original_text) target.original_text = target.text;
+                target.text = finalText;
+                target.edited_by = `${username} (at approval)`;
+                target.edited_at = target.decidedAt;
+            }
             saveJson(SUGGESTIONS_PATH, list);
             if (target.userId && member?.guild) {
                 await checkContributorTierUpgrade(member.guild, target.userId, target.by || username);
             }
-            return reply(`Suggestion #${id} approved.`);
+            const approvedCount = target.userId ? getApprovedCountForUser(target.userId) : 0;
+            return reply(
+                `Suggestion #${args.id} approved and filed under \`${result.locator}\`.\n` +
+                `> ${finalText.slice(0, 200)}\n` +
+                `${countFacts()} custom facts total. ${target.by || 'user'} now has ${approvedCount} approved.`
+            );
         }
         case 'reject': {
             if (!isModerator(member)) return reply('This command requires the **Moderator**, **Officer**, or **Admin** role.');
-            const id = parseInt((argText || '').trim(), 10);
+            const parts = String(argText || '').split(/\s+/);
+            const id = parseInt(parts[0], 10);
             if (!Number.isInteger(id)) return reply('Usage: `!reject <id>`');
+            const reason = parts.slice(1).join(' ') || 'No reason given';
             const list = loadJson(SUGGESTIONS_PATH, []);
-            const target = list.find((s) => Number(s.id) === id);
-            if (!target) return reply(`No suggestion found with id ${id}.`);
+            const target = list.find((s) => Number(s.id) === id && (s.status || 'pending') === 'pending');
+            if (!target) return reply(`No pending suggestion found with id ${id}.`);
             target.status = 'rejected';
             target.decidedBy = username;
             target.decidedAt = new Date().toISOString();
+            target.reason = reason;
             saveJson(SUGGESTIONS_PATH, list);
-            return reply(`Suggestion #${id} rejected.`);
+            return reply(`Suggestion #${id} rejected. Reason: ${reason}`);
         }
         case 'grant': {
             if (!isModerator(member)) return reply('This command requires the **Moderator**, **Officer**, or **Admin** role.');
