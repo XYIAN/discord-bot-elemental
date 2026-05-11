@@ -513,10 +513,9 @@ function buildDailyResetMessage() {
     return [
         `⚡ **Tempest Daily Reset Reminder (${localTime} PT)**`,
         '',
-        'Daily reset is live. Stay on pace and lock in your progress:',
-        '• Complete your **daily class**',
-        '• **Register for clan raid** before the window closes',
-        '• Clear key dailies and event tasks for steady growth',
+        'Daily reset is live. Keep your clan status active:',
+        '• Be active in the server today (strategy/help/chat)',
+        '• Check current events and progress channels',
         '',
         'Tempest discipline wins seasons.',
     ].join('\n');
@@ -705,27 +704,17 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             const channel = await findChannelByNames(['tempest-clan-chat', ...CONFIG.welcomeChannelNames]);
             if (!channel) return reply('No clan-chat or welcome channel found to post to.');
             const embed = new EmbedBuilder()
-                .setTitle('⚡ Tempest Clan Requirements')
+                .setTitle('⚡ Tempest Clan Activity Standard')
                 .setColor(0x5865f2)
                 .setDescription(
                     [
-                        'Tempest is a competitive Legend of Elements clan. To stay rostered:',
+                        'Tempest keeps one clear standard for all members:',
                         '',
-                        '**Daily**',
-                        '• Complete your daily class',
-                        '• Register for clan raid before window closes',
-                        '• Clear key dailies and event tasks',
+                        '**Requirement**',
+                        '• Stay active daily in Discord (strategy/help/chat).',
                         '',
-                        '**Weekly**',
-                        '• Hit clan event participation thresholds',
-                        '• Contribute to clan vault',
-                        '',
-                        '**Conduct**',
-                        '• Respect officers and clanmates',
-                        '• Report blockers in `#help-and-questions`',
-                        '• Keep strategy talk in the right channel',
-                        '',
-                        'Officers will reach out about promotion paths once you are consistently active.',
+                        'Everything else (events, raids, builds) is guidance, not a hard gate.',
+                        'If you will be inactive, post a quick note in `#help-and-questions`.',
                     ].join('\n')
                 )
                 .setFooter({ text: `${APP_NAME} - Tempest discipline wins seasons.` })
@@ -1288,10 +1277,8 @@ async function buildWelcomeEmbed(targetName = null) {
                 `• ${events} - codes, events, and timers`,
                 `• ${help} - introduce yourself and ask anything`,
                 '',
-                '**Daily standards**',
-                '• Complete your daily class',
-                '• Register for clan raid',
-                '• Stay active in voice and text',
+                '**Clan standard**',
+                '• Stay active daily in Discord (strategy/help/chat).',
                 '',
                 `React with ${CONFIG.reactionRole.emoji} on the opt-in message in ${gameplay} to enable AI access.`,
             ].join('\n')
@@ -1315,9 +1302,8 @@ function buildRecruitEmbed() {
                 '• Direct access to a Tempest-tuned AI strategy bot',
                 '',
                 '**Requirements**',
-                '• Daily class completion',
-                '• Clan raid registration',
-                '• Discord activity and respect for officers',
+                '• Be active daily in Discord',
+                '• Respect officers and clanmates',
                 '',
                 'DM an officer or post in `#help-and-questions` to apply.',
             ].join('\n')
@@ -1450,8 +1436,7 @@ async function handleNewMember(member) {
                         'Tempest is an active Legend of Elements clan focused on daily discipline and coordinated play.',
                         '',
                         '**Quick start**',
-                        '• Complete your daily class',
-                        '• Register for clan raid',
+                        '• Be active daily in Discord (strategy/help/chat)',
                         `• React ${CONFIG.reactionRole.emoji} on the opt-in message in the server to enable AI access`,
                     ].join('\n')
                 )

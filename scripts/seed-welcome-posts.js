@@ -85,8 +85,8 @@ function channelMessageMap(channelIds) {
                         `Track active codes, rotating events, and deadline reminders here.\n\n` +
                         '**Daily reset standard**\n' +
                         '• Reset reminder posts at **9:00 PM Pacific**\n' +
-                        '• Complete daily class\n' +
-                        '• Register for clan raid\n\n' +
+                        '• Stay active daily in Discord\n' +
+                        '• Check events and progression channels\n\n' +
                         `For issues with reminders or bot behavior, report in ${links.debug}.`,
                     color: 15844367,
                 },
@@ -116,10 +116,9 @@ function channelMessageMap(channelIds) {
                     title: 'Clan Coordination Center',
                     description:
                         `Use ${links.clanChat} for active clan coordination.\n\n` +
-                        '**Daily expectations**\n' +
-                        '• Complete class objectives\n' +
-                        '• Register for clan raid\n' +
-                        '• Coordinate priorities in real time\n\n' +
+                        '**Daily standard**\n' +
+                        '• Stay active daily in Discord.\n' +
+                        '• Coordinate priorities in real time.\n\n' +
                         `Related private channels: ${links.clanQuests} and ${links.clanEvents}.`,
                     color: 10181046,
                 },

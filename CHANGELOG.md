@@ -35,6 +35,8 @@ Versioning:
   - `!faq` now returns the source-style knowledge category overview (instead of keyword-search mode).
   - `!rank` now supports optional target user mention/id lookup while preserving self lookup.
 - Restored source unknown-command UX in AI/DM contexts: unknown `!` commands now return `Unknown command. Try !help`.
+- Updated Elemental clan messaging to your requested policy: requirements are now **daily activity only** (welcome/recruit/reset/requirements copy and seed welcome payloads).
+- Ran live Discord reconciliation (`audit:ai`, `setup:all`) and confirmed current `DISCORD_TOKEN` is unauthorized (`401`), which blocks live role/channel/permission sync until token is refreshed.
 
 ## [1.0.7] - 2026-05-10
 
