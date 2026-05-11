@@ -1910,7 +1910,7 @@ client.on('messageCreate', async (message) => {
     const cmd = (rawCmd || '').toLowerCase();
     const argText = rest.join(' ').trim();
 
-    return executeCommand({
+    const handled = await executeCommand({
         cmd,
         argText,
         member: message.member,
@@ -1918,6 +1918,10 @@ client.on('messageCreate', async (message) => {
         username: message.author.username,
         reply: (content) => message.reply(content),
     });
+    if (handled == null && (isAITextChannel || isDM)) {
+        return message.reply('Unknown command. Try `!help`.');
+    }
+    return handled;
 });
 
 client.on('interactionCreate', async (interaction) => {

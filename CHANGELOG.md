@@ -34,6 +34,7 @@ Versioning:
   - `!contributors` now ranks by **approved** suggestions only (not blended fact/opinion totals).
   - `!faq` now returns the source-style knowledge category overview (instead of keyword-search mode).
   - `!rank` now supports optional target user mention/id lookup while preserving self lookup.
+- Restored source unknown-command UX in AI/DM contexts: unknown `!` commands now return `Unknown command. Try !help`.
 
 ## [1.0.7] - 2026-05-10
 
