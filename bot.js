@@ -102,6 +102,9 @@ const FEEDBACK_PATH = path.join(DATA_DIR, 'feedback.json');
 const OPINIONS_PATH = path.join(DATA_DIR, 'opinions.json');
 const REACTION_ROLE_PATH = path.join(DATA_DIR, 'reaction-role.json');
 const ACTIVITY_COOLDOWN_MS = 60_000;
+const SUGGEST_COOLDOWN_MS = 60_000;
+const SUGGEST_DAILY_MAX = 5;
+const suggestCooldown = new Map();
 
 const CONFIG_PATH = path.join(__dirname, 'config', 'bootstrap-config.json');
 const CONFIG = loadJson(CONFIG_PATH, {});
@@ -271,10 +274,75 @@ function isAdmin(member) {
     return member.roles.cache.some((r) => CONFIG.adminRoleNames.includes(r.name));
 }
 
+function isModerator(member) {
+    if (!member?.roles?.cache) return false;
+    return isAdmin(member) || member.roles.cache.some((r) => ['Moderator'].includes(r.name));
+}
+
+function hasVerifiedRole(member) {
+    if (!member?.roles?.cache) return false;
+    const allowed = [
+        CONFIG.clanRoleNames.verified,
+        CONFIG.clanRoleNames.officer,
+        ...CONFIG.adminRoleNames,
+        'Server Booster',
+    ].filter(Boolean);
+    return member.roles.cache.some((r) => allowed.includes(r.name));
+}
+
 function hasAIAccess(member) {
     if (!member?.roles?.cache) return false;
-    if (isAdmin(member)) return true;
+    if (hasVerifiedRole(member)) return true;
     return member.roles.cache.some((r) => CONFIG.ai.accessRoleNames.includes(r.name));
+}
+
+function canSuggest(userId) {
+    const now = Date.now();
+    const tracker = suggestCooldown.get(userId) || { count: 0, firstAt: now, lastAt: 0 };
+    if (now - tracker.lastAt < SUGGEST_COOLDOWN_MS) return { ok: false, reason: 'Please wait a minute between suggestions.' };
+    if (now - tracker.firstAt > 24 * 60 * 60 * 1000) {
+        tracker.count = 0;
+        tracker.firstAt = now;
+    }
+    if (tracker.count >= SUGGEST_DAILY_MAX) return { ok: false, reason: `You've hit the daily limit (${SUGGEST_DAILY_MAX} suggestions). Try again tomorrow!` };
+    return { ok: true };
+}
+
+function recordSuggestion(userId) {
+    const now = Date.now();
+    const tracker = suggestCooldown.get(userId) || { count: 0, firstAt: now, lastAt: 0 };
+    tracker.count += 1;
+    tracker.lastAt = now;
+    suggestCooldown.set(userId, tracker);
+}
+
+function getApprovedCountForUser(userId) {
+    const suggestions = loadJson(SUGGESTIONS_PATH, []);
+    return suggestions.filter((s) => (s.status === 'approved' || s.status === 'granted') && s.userId === userId).length;
+}
+
+function getContributorRoleTiers() {
+    return [
+        { name: CONFIG.reactionRole.roleName, threshold: 0, canSuggest: true, canAddFact: false, canAddOpinion: false, canRemoveFact: false, canListFacts: false },
+        { name: 'Tempest Scribe', threshold: 5, canSuggest: true, canAddFact: true, canAddOpinion: true, canRemoveFact: false, canListFacts: true },
+        { name: 'Tempest Loremaster', threshold: 15, canSuggest: true, canAddFact: true, canAddOpinion: true, canRemoveFact: true, canListFacts: true },
+    ];
+}
+
+function getMemberTier(member) {
+    if (!member?.roles?.cache) return null;
+    const tiers = getContributorRoleTiers();
+    for (let i = tiers.length - 1; i >= 0; i--) {
+        if (member.roles.cache.some((r) => r.name === tiers[i].name)) return tiers[i];
+    }
+    return null;
+}
+
+function canMemberDo(member, permission) {
+    if (isAdmin(member)) return true;
+    if (hasVerifiedRole(member)) return true;
+    const tier = getMemberTier(member);
+    return tier ? tier[permission] === true : false;
 }
 
 function awardActivityPoint(userId, username) {
@@ -601,28 +669,36 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         case 'myperms':
         case 'perms': {
             const userPoints = (loadJson(ACTIVITY_PATH, {})[userId]?.points) || 0;
-            const tier = getForumTierForPoints(userPoints);
+            const approvedCount = getApprovedCountForUser(userId);
+            const tier = getMemberTier(member);
             const isAdminFlag = isAdmin(member);
-            const perms = memberForumPermissions(member, userPoints);
+            const canSuggestFlag = hasAIAccess(member) || canMemberDo(member, 'canSuggest');
+            const canAddOpinionFlag = canMemberDo(member, 'canAddOpinion');
+            const canListFactsFlag = canMemberDo(member, 'canListFacts');
+            const canAddFactFlag = canMemberDo(member, 'canAddFact');
+            const canRemoveFactFlag = canMemberDo(member, 'canRemoveFact');
             return reply(
                 [
                     `**Your forum status**`,
                     `Activity points: **${userPoints}**`,
+                    `Approved suggestions: **${approvedCount}**`,
                     `Forum tier: **${tier?.name || 'none yet'}**`,
                     `Admin: **${isAdminFlag ? 'yes' : 'no'}**`,
                     '',
                     '**Capabilities**',
-                    `- canSuggest: ${isAdminFlag || perms.canSuggest ? 'yes' : 'no'}`,
-                    `- canAddOpinion: ${isAdminFlag || perms.canAddOpinion ? 'yes' : 'no'}`,
-                    `- canListFacts: ${isAdminFlag || perms.canListFacts ? 'yes' : 'no'}`,
-                    `- canAddFact: ${isAdminFlag || perms.canAddFact ? 'yes' : 'no'}`,
-                    `- canRemoveFact: ${isAdminFlag || perms.canRemoveFact ? 'yes' : 'no'}`,
+                    `- canSuggest: ${canSuggestFlag ? 'yes' : 'no'}`,
+                    `- canAddOpinion: ${canAddOpinionFlag ? 'yes' : 'no'}`,
+                    `- canListFacts: ${canListFactsFlag ? 'yes' : 'no'}`,
+                    `- canAddFact: ${canAddFactFlag ? 'yes' : 'no'}`,
+                    `- canRemoveFact: ${canRemoveFactFlag ? 'yes' : 'no'}`,
                 ].join('\n')
             );
         }
         case 'suggest': {
             if (!hasAIAccess(member)) return reply('You need the **Elemental AI Enabled** or verified role to use this command.');
             if (!argText) return reply('Usage: `!suggest <text>`');
+            const check = canSuggest(userId);
+            if (!check.ok) return reply(`⏳ ${check.reason}`);
             const list = loadJson(SUGGESTIONS_PATH, []);
             const id = nextId(list);
             list.push({
@@ -636,13 +712,11 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
                 decidedAt: null,
             });
             saveJson(SUGGESTIONS_PATH, list);
+            recordSuggestion(userId);
             return reply(`Suggestion #${id} received. Admin will review.`);
         }
         case 'addfact': {
-            const userPoints = (loadJson(ACTIVITY_PATH, {})[userId]?.points) || 0;
-            if (!memberCanWithRoleOrAdmin(member, userPoints, 'canAddFact')) {
-                return reply('You need the Tempest Loremaster (or higher) role or admin to add facts.');
-            }
+            if (!canMemberDo(member, 'canAddFact')) return reply('You need the **Tempest Scribe** role or higher to add facts.');
             if (!argText) return reply('Usage: `!addfact <text>`');
             const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
             if (!Array.isArray(knowledge.custom_facts)) knowledge.custom_facts = [];
@@ -658,6 +732,8 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         }
         case 'listfacts':
         case 'lf': {
+            const isDM = !member;
+            if (!canMemberDo(member, 'canListFacts') && !isDM) return reply('You need the **Tempest Scribe** role or higher to use this command.');
             const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
             const facts = Array.isArray(knowledge.custom_facts) ? knowledge.custom_facts : [];
             if (!facts.length) return reply('No custom facts yet. Use `!addfact <text>` (admin) to add.');
@@ -672,10 +748,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         }
         case 'removefact':
         case 'rf': {
-            const userPoints = (loadJson(ACTIVITY_PATH, {})[userId]?.points) || 0;
-            if (!memberCanWithRoleOrAdmin(member, userPoints, 'canRemoveFact')) {
-                return reply('You need the Tempest Archivist role or admin to remove facts.');
-            }
+            if (!canMemberDo(member, 'canRemoveFact')) return reply('You need the **Tempest Loremaster** role or admin to remove facts.');
             const id = parseInt((argText || '').trim(), 10);
             if (!Number.isInteger(id)) return reply('Usage: `!removefact <id>`');
             const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
@@ -687,6 +760,8 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             return reply(`Fact #${id} removed. Remaining: ${knowledge.custom_facts.length}.`);
         }
         case 'faq': {
+            const isDM = !member;
+            if (!canMemberDo(member, 'canListFacts') && !isDM) return reply('You need the **Tempest Scribe** role or higher to use this command.');
             const topic = (argText || '').trim().toLowerCase();
             if (!topic) return reply('Usage: `!faq <topic>` - searches knowledge for matching keywords.');
             const knowledge = loadJson(KNOWLEDGE_PATH, {});
@@ -720,6 +795,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             return reply([`**FAQ matches for "${topic}"**`, ...limited].join('\n') + truncated);
         }
         case 'opinion': {
+            if (!canMemberDo(member, 'canAddOpinion')) return reply('You need the **Tempest Scribe** role or higher to share opinions.');
             if (!argText) return reply('Usage: `!opinion <text>`');
             const list = loadJson(OPINIONS_PATH, []);
             const id = nextId(list);
@@ -735,6 +811,8 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         }
         case 'listopinions':
         case 'lo': {
+            const isDM = !member;
+            if (!canMemberDo(member, 'canListFacts') && !isDM) return reply('You need the **Tempest Scribe** role or higher to use this command.');
             const list = loadJson(OPINIONS_PATH, []);
             if (!list.length) return reply('No opinions yet. Use `!opinion <text>` to add one.');
             const requested = parseInt((argText || '').trim(), 10);
@@ -748,7 +826,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         }
         case 'removeopinion':
         case 'ro': {
-            if (!isAdmin(member)) return reply('Admin only command.');
+            if (!canMemberDo(member, 'canRemoveFact')) return reply('You need the **Tempest Loremaster** role or admin to remove opinions.');
             const id = parseInt((argText || '').trim(), 10);
             if (!Number.isInteger(id)) return reply('Usage: `!removeopinion <id>`');
             const list = loadJson(OPINIONS_PATH, []);
@@ -760,7 +838,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         }
         case 'suggestions':
         case 'queue': {
-            if (!isAdmin(member)) return reply('Admin only command.');
+            if (!isModerator(member)) return reply('This command requires the **Moderator**, **Officer**, or **Admin** role.');
             const filterArg = (argText || 'pending').trim().toLowerCase();
             const status = SUGGESTION_STATUSES.includes(filterArg) ? filterArg : 'pending';
             const list = loadJson(SUGGESTIONS_PATH, []);
@@ -770,7 +848,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             return reply([`**Suggestions [${status}]**`, ...lines].join('\n'));
         }
         case 'edit': {
-            if (!isAdmin(member)) return reply('Admin only command.');
+            if (!isModerator(member)) return reply('This command requires the **Moderator**, **Officer**, or **Admin** role.');
             const m = (argText || '').match(/^(\d+)\s+(.+)$/s);
             if (!m) return reply('Usage: `!edit <id> <new text>`');
             const id = parseInt(m[1], 10);
@@ -783,7 +861,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             return reply(`Suggestion #${id} updated.`);
         }
         case 'approve': {
-            if (!isAdmin(member)) return reply('Admin only command.');
+            if (!isModerator(member)) return reply('This command requires the **Moderator**, **Officer**, or **Admin** role.');
             const id = parseInt((argText || '').trim(), 10);
             if (!Number.isInteger(id)) return reply('Usage: `!approve <id>`');
             const list = loadJson(SUGGESTIONS_PATH, []);
@@ -793,10 +871,13 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             target.decidedBy = username;
             target.decidedAt = new Date().toISOString();
             saveJson(SUGGESTIONS_PATH, list);
+            if (target.userId && member?.guild) {
+                await checkContributorTierUpgrade(member.guild, target.userId, target.by || username);
+            }
             return reply(`Suggestion #${id} approved.`);
         }
         case 'reject': {
-            if (!isAdmin(member)) return reply('Admin only command.');
+            if (!isModerator(member)) return reply('This command requires the **Moderator**, **Officer**, or **Admin** role.');
             const id = parseInt((argText || '').trim(), 10);
             if (!Number.isInteger(id)) return reply('Usage: `!reject <id>`');
             const list = loadJson(SUGGESTIONS_PATH, []);
@@ -809,7 +890,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             return reply(`Suggestion #${id} rejected.`);
         }
         case 'grant': {
-            if (!isAdmin(member)) return reply('Admin only command.');
+            if (!isModerator(member)) return reply('This command requires the **Moderator**, **Officer**, or **Admin** role.');
             const id = parseInt((argText || '').trim(), 10);
             if (!Number.isInteger(id)) return reply('Usage: `!grant <id>`');
             const list = loadJson(SUGGESTIONS_PATH, []);
@@ -1215,6 +1296,30 @@ async function maybeGrantForumTierRole(member, points) {
         await sendDebug({ content: `🎓 Forum tier upgrade: <@${member.id}> reached **${tier.name}** at ${points} pts.` });
     } catch (error) {
         console.error('maybeGrantForumTierRole failed:', error.message);
+    }
+}
+
+async function checkContributorTierUpgrade(guild, userId, username) {
+    const count = getApprovedCountForUser(userId);
+    const member = await guild.members.fetch(userId).catch(() => null);
+    if (!member) return;
+    const tiers = getContributorRoleTiers();
+    for (const tier of tiers) {
+        if (tier.threshold <= 0) continue;
+        if (count < tier.threshold) continue;
+        const role = guild.roles.cache.find((r) => r.name === tier.name);
+        if (!role) continue;
+        if (member.roles.cache.has(role.id)) continue;
+        await member.roles.add(role).catch(() => null);
+        try {
+            await member.send(
+                `🎓 You've earned **${tier.name}** with **${count} approved suggestions**.\n\n` +
+                `New permissions unlocked in #elemental-ai and knowledge commands.`
+            );
+        } catch {
+            // best effort only
+        }
+        await sendDebug({ content: `🎓 Contributor tier upgrade: <@${userId}> -> **${tier.name}** (${count} approved).` });
     }
 }
 
