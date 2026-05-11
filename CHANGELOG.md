@@ -30,6 +30,10 @@ Versioning:
   - `!approve` now files approved suggestions into knowledge storage (default `custom_facts`, optional `category/key`, optional override text via `|`).
   - `!edit` and `!reject` now operate on pending queue entries only and track edit/reject metadata/reason.
   - `!suggest` now enforces source minimum length (10 chars) before queueing.
+- Restored source contributor/rank command semantics:
+  - `!contributors` now ranks by **approved** suggestions only (not blended fact/opinion totals).
+  - `!faq` now returns the source-style knowledge category overview (instead of keyword-search mode).
+  - `!rank` now supports optional target user mention/id lookup while preserving self lookup.
 
 ## [1.0.7] - 2026-05-10
 

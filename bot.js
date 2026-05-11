@@ -396,7 +396,7 @@ function countFacts() {
 
 function getApprovedCountForUser(userId) {
     const suggestions = loadJson(SUGGESTIONS_PATH, []);
-    return suggestions.filter((s) => (s.status === 'approved' || s.status === 'granted') && s.userId === userId).length;
+    return suggestions.filter((s) => s.status === 'approved' && s.userId === userId).length;
 }
 
 function getContributorRoleTiers() {
@@ -679,26 +679,24 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         }
         case 'contributors':
         case 'top': {
-            const facts = (loadJson(KNOWLEDGE_PATH, { custom_facts: [] }).custom_facts || []);
-            const opinions = loadJson(OPINIONS_PATH, []);
             const suggestions = loadJson(SUGGESTIONS_PATH, []);
-            const counts = new Map();
-            const bump = (key, kind) => {
-                if (!key) return;
-                const e = counts.get(key) || { facts: 0, opinions: 0, suggestions: 0, total: 0 };
-                e[kind] += 1;
-                e.total += 1;
-                counts.set(key, e);
-            };
-            for (const f of facts) bump(f.added_by || 'unknown', 'facts');
-            for (const o of opinions) bump(o.by || 'unknown', 'opinions');
-            for (const s of suggestions) bump(s.by || 'unknown', 'suggestions');
-            const ranked = [...counts.entries()]
-                .map(([name, c]) => ({ name, ...c }))
-                .sort((a, b) => b.total - a.total)
+            const approved = suggestions.filter((s) => s.status === 'approved');
+            if (!approved.length) return reply('No approved contributions yet. Be the first - use `!suggest`.');
+            const counts = {};
+            for (const s of approved) {
+                const key = s.by || 'Unknown';
+                counts[key] = (counts[key] || 0) + 1;
+            }
+            const ranked = Object.entries(counts)
+                .map(([name, count]) => ({ name, count }))
+                .sort((a, b) => b.count - a.count)
                 .slice(0, 10);
-            if (!ranked.length) return reply('No contribution data yet.');
-            const lines = ranked.map((r, i) => `${i + 1}. **${r.name}** - ${r.total} total (facts: ${r.facts}, opinions: ${r.opinions}, suggestions: ${r.suggestions})`);
+            const medals = ['🥇', '🥈', '🥉'];
+            const lines = ranked.map((r, i) => {
+                const medal = medals[i] || `${i + 1}.`;
+                const tierLabel = r.count >= 15 ? ' Tempest Loremaster' : r.count >= 5 ? ' Tempest Scribe' : '';
+                return `${medal} **${r.name}** - ${r.count} approved${tierLabel}`;
+            });
             return reply(['**Top Contributors**', ...lines].join('\n'));
         }
         case 'post-clan-requirements':
@@ -838,39 +836,20 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             return reply(`Fact #${id} removed. Remaining: ${knowledge.custom_facts.length}.`);
         }
         case 'faq': {
+            const knowledge = loadJson(KNOWLEDGE_PATH, {});
             const isDM = !member;
             if (!canMemberDo(member, 'canListFacts') && !isDM) return reply('You need the **Tempest Scribe** role or higher to use this command.');
-            const topic = (argText || '').trim().toLowerCase();
-            if (!topic) return reply('Usage: `!faq <topic>` - searches knowledge for matching keywords.');
-            const knowledge = loadJson(KNOWLEDGE_PATH, {});
-            const hits = [];
-            const facts = Array.isArray(knowledge.custom_facts) ? knowledge.custom_facts : [];
-            for (const f of facts) {
-                if (typeof f.text === 'string' && f.text.toLowerCase().includes(topic)) {
-                    hits.push(`**Fact #${f.id || '?'}**: ${f.text}`);
-                }
-            }
-            const walk = (obj, trail) => {
-                if (typeof obj === 'string') {
-                    if (obj.toLowerCase().includes(topic)) hits.push(`**${trail.join(' / ')}**: ${obj}`);
-                    return;
-                }
-                if (Array.isArray(obj)) {
-                    obj.forEach((v, i) => walk(v, [...trail, String(i)]));
-                    return;
-                }
-                if (obj && typeof obj === 'object') {
-                    for (const [k, v] of Object.entries(obj)) walk(v, [...trail, k]);
-                }
-            };
-            for (const [k, v] of Object.entries(knowledge)) {
-                if (k === 'custom_facts') continue;
-                walk(v, [k]);
-            }
-            if (!hits.length) return reply(`No knowledge entries matched "${topic}".`);
-            const limited = hits.slice(0, 10);
-            const truncated = hits.length > limited.length ? `\n\n_Showing first ${limited.length} of ${hits.length} matches._` : '';
-            return reply([`**FAQ matches for "${topic}"**`, ...limited].join('\n') + truncated);
+            const categories = Object.keys(knowledge).filter((k) => k !== 'custom_facts' && k !== 'opinions');
+            const list = categories.map((c) => `- ${c.replace(/_/g, ' ')} (${typeof knowledge[c] === 'object' ? Object.keys(knowledge[c] || {}).length : 1} entries)`);
+            const factsCount = (knowledge.custom_facts || []).length;
+            const opinionsCount = (loadJson(OPINIONS_PATH, []).length);
+            return reply([
+                '**FAQ - What can I answer?**',
+                ...list,
+                '',
+                `Plus ${factsCount} custom facts and ${opinionsCount} community opinions.`,
+                'Ask your question in #elemental-ai.',
+            ].join('\n'));
         }
         case 'opinion': {
             if (!canMemberDo(member, 'canAddOpinion')) return reply('You need the **Tempest Scribe** role or higher to share opinions.');
@@ -1035,7 +1014,9 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         case 'rank':
         case 'level': {
             const map = loadJson(ACTIVITY_PATH, {});
-            const entry = map[userId] || { points: 0 };
+            const mentionMatch = String(argText || '').match(/<@!?(\d+)>|(\d+)/);
+            const targetUserId = mentionMatch ? (mentionMatch[1] || mentionMatch[2]) : userId;
+            const entry = map[targetUserId] || { points: 0, username: targetUserId === userId ? username : 'user' };
             const points = entry.points || 0;
             const tier = getActivityTier(points);
             const next = getNextActivityTier(points);
@@ -1045,7 +1026,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
                 : 'You are at the highest configured rank tier.';
             return reply(
                 [
-                    `**Rank:** ${tier.name}`,
+                    `**Rank (${entry.username || targetUserId}):** ${tier.name}`,
                     `**Points:** ${points}`,
                     `**Progress:** ${bar}`,
                     nextLine,
