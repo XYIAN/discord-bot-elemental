@@ -23,6 +23,7 @@ Versioning:
 - Mirrored source message routing rule: outside AI channel / DMs, non-command chatter is ignored; non-command AI replies only happen in `#elemental-ai`.
 - Mirrored source suggestion throttling: 60-second per-user cooldown and daily cap (5) for `!suggest`.
 - Mirrored source moderation permissions: `!suggestions`, `!edit`, `!approve`, `!reject`, `!grant` now require moderator/officer/admin access.
+- Restored source `!grant` behavior: it now manually grants the AI access role to a mentioned user (`!grant @user`) instead of suggestion promotion semantics.
 - Mirrored source knowledge-command gating model (`canMemberDo`) so `!addfact` / `!opinion` / `!listfacts` / `!faq` / removals follow contributor-tier or verified/admin role access.
 - Added source-style contributor tier upgrades on approval events (`checkContributorTierUpgrade`) driven by approved suggestion counts.
 

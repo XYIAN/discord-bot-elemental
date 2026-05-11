@@ -501,7 +501,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
                     '`!suggestions [pending|approved|rejected|granted]` - list suggestion queue',
                     '`!edit <id> <text>` - edit suggestion text',
                     '`!approve <id>` / `!reject <id>` - decide a suggestion',
-                    '`!grant <id>` - promote suggestion to a fact',
+                    '`!grant @user` - manually grant AI access role',
                     '',
                     '**AI (in #elemental-ai)**',
                     'Requires **Elemental AI Enabled** or verified/admin roles.',
@@ -891,27 +891,34 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
         }
         case 'grant': {
             if (!isModerator(member)) return reply('This command requires the **Moderator**, **Officer**, or **Admin** role.');
-            const id = parseInt((argText || '').trim(), 10);
-            if (!Number.isInteger(id)) return reply('Usage: `!grant <id>`');
-            const list = loadJson(SUGGESTIONS_PATH, []);
-            const target = list.find((s) => Number(s.id) === id);
-            if (!target) return reply(`No suggestion found with id ${id}.`);
-            const knowledge = loadJson(KNOWLEDGE_PATH, { custom_facts: [] });
-            if (!Array.isArray(knowledge.custom_facts)) knowledge.custom_facts = [];
-            const factId = nextId(knowledge.custom_facts);
-            knowledge.custom_facts.push({
-                id: factId,
-                text: target.text,
-                added_by: target.by,
-                added_at: new Date().toISOString().split('T')[0],
-                granted_from_suggestion: id,
+            const m = (argText || '').match(/<@!?(\d+)>|(\d+)/);
+            const targetUserId = m ? (m[1] || m[2]) : null;
+            if (!targetUserId) return reply('Usage: `!grant @user` — assigns the AI access role.');
+            const guild = member?.guild;
+            if (!guild) return reply('This command must be run in server channels.');
+            const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+            if (!targetMember) return reply('Could not find that member in this server.');
+            const roleName = CONFIG.reactionRole.roleName;
+            const role = guild.roles.cache.find((r) => r.name === roleName);
+            if (!role) return reply(`Role "${roleName}" not found in this server.`);
+            if (targetMember.roles.cache.has(role.id)) return reply(`${targetMember.user.username} already has **${roleName}**.`);
+            try {
+                await targetMember.roles.add(role);
+            } catch (e) {
+                return reply(`Grant failed: ${e.message}`);
+            }
+            try {
+                await targetMember.send(
+                    `🤖 You've been granted **${roleName}**.\n\n` +
+                    `You can now ask questions in #elemental-ai and use \`!suggest\`.`
+                );
+            } catch {
+                // best effort
+            }
+            await sendDebug({
+                content: `🤖 Role manually granted\nUser: **${targetMember.user.username}** (${targetMember.id})\nRole: **${roleName}**\nGranted by: ${username}`,
             });
-            saveJson(KNOWLEDGE_PATH, knowledge);
-            target.status = 'granted';
-            target.decidedBy = username;
-            target.decidedAt = new Date().toISOString();
-            saveJson(SUGGESTIONS_PATH, list);
-            return reply(`Suggestion #${id} granted as fact #${factId}.`);
+            return reply(`Assigned **${roleName}** to ${targetMember.user.username}.`);
         }
         case 'rank':
         case 'level': {
