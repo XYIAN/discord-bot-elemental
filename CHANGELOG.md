@@ -8,6 +8,15 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [1.0.6] - 2026-05-10
+
+### Welcome flow reliability and fallback controls
+
+- Added admin `!postwelcome` / `/postwelcome` command to manually post the full Tempest onboarding embed to the configured welcome channel.
+- Added explicit startup warning to `#debug-log` when `ENABLE_GUILD_MEMBERS_INTENT` is disabled, so it is obvious why join-based welcome automation is not firing.
+- Updated `scripts/seed-welcome-posts.js` welcome copy in `#gameplay-general` to a stronger Tempest onboarding brief (replacing generic default phrasing).
+- Join-based `guildMemberAdd` welcome flow remains active when `ENABLE_GUILD_MEMBERS_INTENT=true` and Server Members Intent is enabled in Discord Developer Portal.
+
 ## [1.0.5] - 2026-05-10
 
 ### Role hierarchy guardrails

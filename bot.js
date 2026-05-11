@@ -363,6 +363,7 @@ function buildSlashCommands() {
         new SlashCommandBuilder().setName('blueprint').setDescription('Show planned channel blueprint'),
         new SlashCommandBuilder().setName('rank').setDescription('Show your activity rank and progress'),
         new SlashCommandBuilder().setName('leaderboard').setDescription('Show activity leaderboard'),
+        new SlashCommandBuilder().setName('postwelcome').setDescription('Admin: post welcome embed in welcome channel'),
     ].map((c) => c.toJSON());
 }
 
@@ -429,6 +430,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
                     '`!post-clan-requirements` - post Tempest clan requirements embed',
                     '`!recruit` - post Tempest clan recruit embed now',
                     '`!reset` - fire the daily reset reminder now',
+                    '`!postwelcome` - post the full welcome embed in welcome channel',
                     '`!setupreaction` - post the AI opt-in reaction message',
                     '`!debug-ping` - smoke-test #debug-log post',
                 ].join('\n')
@@ -469,6 +471,19 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             if (!isAdmin(member)) return reply('Admin only command.');
             const result = await sendReactionRoleOptInMessage();
             return reply(result.posted ? `Setup reaction message: ${result.status}` : `Setup reaction failed: ${result.status}`);
+        }
+        case 'postwelcome':
+        case 'welcome': {
+            if (!isAdmin(member)) return reply('Admin only command.');
+            const channel = await findWelcomeChannel();
+            if (!channel) return reply('No welcome channel found.');
+            try {
+                const embed = await buildWelcomeEmbed();
+                await channel.send({ embeds: [embed] });
+                return reply(`Posted welcome embed to #${channel.name}.`);
+            } catch (error) {
+                return reply(`Welcome post failed: ${error.message}`);
+            }
         }
         case 'ai': {
             const sub = (argText || '').trim().toLowerCase();
@@ -1046,14 +1061,15 @@ function startDailyResetScheduler() {
     console.log(`Daily reset reminder scheduler active (${CONFIG.dailyResetReminder.timezone} @ ${String(CONFIG.dailyResetReminder.hour).padStart(2, '0')}:${String(CONFIG.dailyResetReminder.minute).padStart(2, '0')}).`);
 }
 
-async function buildWelcomeEmbed(member) {
+async function buildWelcomeEmbed(targetName = null) {
     const channelIndex = await buildChannelLinkIndex();
     const ai = channelMention('elemental-ai', channelIndex);
     const help = channelMention('help-and-questions', channelIndex);
     const events = channelMention('codes-and-events', channelIndex);
     const gameplay = channelMention('gameplay-general', channelIndex);
+    const titleSuffix = targetName ? `, ${targetName}` : '';
     return new EmbedBuilder()
-        .setTitle(`⚡ Welcome to Tempest, ${member.user.username}`)
+        .setTitle(`⚡ Welcome to Tempest${titleSuffix}`)
         .setColor(0x5865f2)
         .setDescription(
             [
@@ -1189,7 +1205,7 @@ async function handleNewMember(member) {
         }
         const welcomeChannel = await findWelcomeChannel();
         if (welcomeChannel) {
-            const embed = await buildWelcomeEmbed(member);
+            const embed = await buildWelcomeEmbed(member.user.username);
             await welcomeChannel.send({ content: `<@${member.id}>`, embeds: [embed] }).catch((e) => console.error(`Welcome post failed: ${e.message}`));
         }
         try {
@@ -1586,6 +1602,11 @@ client.once('ready', async () => {
         console.log('Guild Members Intent is enabled. Auto-role on join and member-fetch dependent features are active.');
     } else {
         console.log('Guild Members Intent is disabled (ENABLE_GUILD_MEMBERS_INTENT != true). Join-role automation may be limited.');
+        await sendDebug({
+            content:
+                '⚠️ Welcome automation warning: `ENABLE_GUILD_MEMBERS_INTENT` is false. ' +
+                'Join-based welcome embeds and auto-role on join will not fire until enabled.',
+        });
     }
     await registerGuildSlashCommands();
 

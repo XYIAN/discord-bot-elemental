@@ -52,7 +52,7 @@ function channelMessageMap(channelIds) {
             ],
         },
         'gameplay-general': {
-            content: 'Welcome to Tempest of Elements.',
+            content: '⚡ Tempest Commander onboarding brief: read this message first.',
             embeds: [
                 {
                     title: 'Start Here: Progress + Recruiting',
