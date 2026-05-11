@@ -134,6 +134,34 @@ function channelMessageMap(channelIds) {
     };
 }
 
+function normalizePayload(content) {
+    return typeof content === 'string' ? { content } : content;
+}
+
+function sameSeedMessage(existing, payload) {
+    const existingContent = (existing.content || '').trim();
+    const incomingContent = (payload.content || '').trim();
+    const existingEmbed = existing.embeds?.[0] || null;
+    const incomingEmbed = payload.embeds?.[0] || null;
+    const existingTitle = (existingEmbed?.title || '').trim();
+    const incomingTitle = (incomingEmbed?.title || '').trim();
+    const existingDesc = (existingEmbed?.description || '').trim();
+    const incomingDesc = (incomingEmbed?.description || '').trim();
+
+    if (incomingContent && existingContent === incomingContent) return true;
+    if (incomingTitle && existingTitle === incomingTitle) {
+        // Title match is usually enough for seeded embeds; include short desc guard.
+        if (!incomingDesc || existingDesc === incomingDesc) return true;
+    }
+    return false;
+}
+
+async function hasSeededMessage(channelId, payload, token) {
+    const recent = await discordRequest('GET', `/channels/${channelId}/messages?limit=50`, token);
+    if (!Array.isArray(recent)) return false;
+    return recent.some((m) => m.author?.bot && m.author?.username === 'Tempest Commander' && sameSeedMessage(m, payload));
+}
+
 async function main() {
     const { token, guildId } = getEnv();
     const config = loadBootstrapConfig();
@@ -149,11 +177,16 @@ async function main() {
     for (const channel of channels.filter((c) => c.type === 0 && targetNames.has(c.name))) {
         const content = messages[channel.name];
         if (!content) continue;
+        const payload = normalizePayload(content);
+        const alreadySeeded = await hasSeededMessage(channel.id, payload, token);
+        if (alreadySeeded) {
+            console.log(`= already seeded: #${channel.name}`);
+            continue;
+        }
         if (isDryRun) {
             console.log(`+ dry-run seed welcome: #${channel.name}`);
             continue;
         }
-        const payload = typeof content === 'string' ? { content } : content;
         await discordRequest('POST', `/channels/${channel.id}/messages`, token, payload);
         console.log(`+ seeded welcome: #${channel.name}`);
     }

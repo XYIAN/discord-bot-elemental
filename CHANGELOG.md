@@ -8,6 +8,15 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [1.0.7] - 2026-05-10
+
+### Welcome seeding de-duplication and cleanup
+
+- Performed a live audit of actual bot posts across all text channels and confirmed repeated welcome-seed posts were accumulating while deploy/changelog behavior remained correct.
+- Removed duplicate seeded welcome posts from affected channels, keeping only the most recent canonical onboarding message per channel.
+- Made `scripts/seed-welcome-posts.js` idempotent: it now checks recent bot messages and skips channels already seeded with matching content/embed signatures.
+- `npm run setup:welcome` can now be run safely without creating duplicate onboarding spam.
+
 ## [1.0.6] - 2026-05-10
 
 ### Welcome flow reliability and fallback controls
