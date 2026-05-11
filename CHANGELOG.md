@@ -8,6 +8,20 @@ Versioning:
 - Minor = new features/systems
 - Patch = fixes/docs/content updates
 
+## [1.0.13] - 2026-05-11
+
+### AI access parity with source discord-bot
+
+- Mirrored source-bot AI channel gating: `#elemental-ai` now requires AI-enabled or verified/admin roles for text Q&A (no more open-to-everyone behavior).
+- Added `hasAIAccess(member)` parity helper and used it in both:
+  - AI free-text handler (`respondWithAI`)
+  - `!suggest` command access checks
+- Added `config.ai.accessRoleNames` (defaults now include: `Elemental AI Enabled`, `XY Tempest Verified`, `XY Tempest Officer`, `Admin`, `Moderator`, `Server Booster`).
+- Added explicit debug-log warning when `ENABLE_MESSAGE_CONTENT_INTENT` is off, so \"hello and no reply\" is immediately diagnosable.
+- Privileged intent parity default restored: if env flags are unset, Elemental now defaults both `Message Content` and `Guild Members` intents to **enabled** (matching source-bot expectation).
+- `.env.example` now defaults both intent flags to `true`.
+- Mirrored source message routing rule: outside AI channel / DMs, non-command chatter is ignored; non-command AI replies only happen in `#elemental-ai`.
+
 ## [1.0.7] - 2026-05-10
 
 ### Welcome seeding de-duplication and cleanup

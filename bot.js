@@ -188,10 +188,24 @@ CONFIG.ai = {
         thumbsUp: CONFIG?.ai?.feedback?.thumbsUp || '👍',
         thumbsDown: CONFIG?.ai?.feedback?.thumbsDown || '👎',
     },
+    accessRoleNames: Array.isArray(CONFIG?.ai?.accessRoleNames) && CONFIG.ai.accessRoleNames.length
+        ? CONFIG.ai.accessRoleNames
+        : [],
     persona: typeof CONFIG?.ai?.persona === 'string'
         ? CONFIG.ai.persona
         : null,
 };
+if (!CONFIG.ai.accessRoleNames.length) {
+    CONFIG.ai.accessRoleNames = Array.from(
+        new Set([
+            CONFIG.reactionRole.roleName,
+            CONFIG.clanRoleNames.verified,
+            CONFIG.clanRoleNames.officer,
+            ...(CONFIG.adminRoleNames || []),
+            'Server Booster',
+        ].filter(Boolean))
+    );
+}
 const APP_NAME = process.env.APP_NAME || CONFIG?.appMetadata?.name || 'Tempest Commander';
 const APP_ID = process.env.APP_ID || CONFIG?.appMetadata?.applicationId || process.env.CLIENT_ID || null;
 
@@ -255,6 +269,12 @@ function addReactionRoleMessageId(id) {
 function isAdmin(member) {
     if (!member?.roles?.cache) return false;
     return member.roles.cache.some((r) => CONFIG.adminRoleNames.includes(r.name));
+}
+
+function hasAIAccess(member) {
+    if (!member?.roles?.cache) return false;
+    if (isAdmin(member)) return true;
+    return member.roles.cache.some((r) => CONFIG.ai.accessRoleNames.includes(r.name));
 }
 
 function awardActivityPoint(userId, username) {
@@ -416,7 +436,8 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
                     '`!grant <id>` - promote suggestion to a fact',
                     '',
                     '**AI (in #elemental-ai)**',
-                    'Just ask a question - I will reply when AI is configured.',
+                    'Requires **Elemental AI Enabled** or verified/admin roles.',
+                    'Just ask a question - I will reply when AI is configured and your role has access.',
                     '`!ai status` - show AI runtime + budget',
                     '`!ai on` / `!ai off` - owner kill switch',
                     '`!forget` - clear your AI conversation memory',
@@ -600,6 +621,7 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
             );
         }
         case 'suggest': {
+            if (!hasAIAccess(member)) return reply('You need the **Elemental AI Enabled** or verified role to use this command.');
             if (!argText) return reply('Usage: `!suggest <text>`');
             const list = loadJson(SUGGESTIONS_PATH, []);
             const id = nextId(list);
@@ -866,8 +888,12 @@ async function executeCommand({ cmd, argText, member, userId, username, reply })
     }
 }
 
-const MESSAGE_CONTENT_INTENT_ENABLED = String(process.env.ENABLE_MESSAGE_CONTENT_INTENT || '').toLowerCase() === 'true';
-const GUILD_MEMBERS_INTENT_ENABLED = String(process.env.ENABLE_GUILD_MEMBERS_INTENT || '').toLowerCase() === 'true';
+const MESSAGE_CONTENT_INTENT_ENABLED = process.env.ENABLE_MESSAGE_CONTENT_INTENT
+    ? String(process.env.ENABLE_MESSAGE_CONTENT_INTENT).toLowerCase() === 'true'
+    : true;
+const GUILD_MEMBERS_INTENT_ENABLED = process.env.ENABLE_GUILD_MEMBERS_INTENT
+    ? String(process.env.ENABLE_GUILD_MEMBERS_INTENT).toLowerCase() === 'true'
+    : true;
 
 const clientIntents = [
     GatewayIntentBits.Guilds,
@@ -1409,6 +1435,23 @@ async function callOpenAIChat(messages, isVision) {
 async function respondWithAI(message) {
     if (!aiRuntimeEnabled) return;
     if (!openai) return;
+    if (!hasAIAccess(message.member)) {
+        const accessList = CONFIG.ai.accessRoleNames.map((r) => `**${r}**`).join(', ');
+        const embed = new EmbedBuilder()
+            .setTitle('AI access required')
+            .setDescription(
+                [
+                    'You need an AI-enabled or verified role to ask questions in this channel.',
+                    '',
+                    `Allowed roles: ${accessList}`,
+                    '',
+                    `If you should have access, react with ${CONFIG.reactionRole.emoji} on the opt-in message or ask an officer/admin.`,
+                ].join('\n')
+            )
+            .setColor(0xe67e22);
+        await message.reply({ embeds: [embed] }).catch(() => null);
+        return;
+    }
     if (!checkDailyTokenBudget()) {
         await message.reply('Daily AI token budget reached. Resets at midnight Pacific.').catch(() => null);
         return;
@@ -1597,6 +1640,11 @@ client.once('ready', async () => {
         console.log('Message Content Intent is enabled. Prefix commands and non-mention AI messages are active.');
     } else {
         console.log('Message Content Intent is disabled (ENABLE_MESSAGE_CONTENT_INTENT != true). Slash commands remain active; prefix/free-text listeners are limited.');
+        await sendDebug({
+            content:
+                '⚠️ AI text warning: `ENABLE_MESSAGE_CONTENT_INTENT` is false. ' +
+                'Normal free-text messages in #elemental-ai (e.g. \"hello\") will not trigger bot replies until enabled.',
+        });
     }
     if (GUILD_MEMBERS_INTENT_ENABLED) {
         console.log('Guild Members Intent is enabled. Auto-role on join and member-fetch dependent features are active.');
@@ -1630,6 +1678,12 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     const isCommand = message.content.startsWith('!');
+    const isDM = message.channel?.type === 1;
+    const isAITextChannel = isAIChannel(message.channel);
+    const channelName = message.channel?.name ? String(message.channel.name).toLowerCase() : '';
+
+    // Mirror source-bot behavior: ignore recruit channels for normal handling.
+    if (channelName.includes('recruit')) return;
 
     if (message.guild && isActivityChannel(message.channel) && !isCommand) {
         const newPoints = awardActivityPoint(message.author.id, message.author.username);
@@ -1638,8 +1692,11 @@ client.on('messageCreate', async (message) => {
         }
     }
 
+    // Source parity: outside AI channel + DM, only respond to commands.
+    if (!isAITextChannel && !isDM && !isCommand) return;
+
     if (!isCommand) {
-        if (message.guild && isAIChannel(message.channel)) {
+        if (message.guild && isAITextChannel) {
             await respondWithAI(message);
         }
         return;
